@@ -22,12 +22,21 @@ from .kv_cache import initialize_past_key_values
 
 from .cnets import Model
 from .cnets1 import Model as Model1
-from .cnets_ddd import Model as Modelddd
-from .cnets_c2t import Model as Modelc2t
-from .cnets_svip import Model as Modelsvip
-from .cnets_disco import Model as Modeldisco
-from .cnets_gamma import Model as Modelgamma
-from .cnets_spec_plus import Model as Modelspecplus
+# >>>
+# from .cnets_ddd import Model as Modelddd
+# from .cnets_c2t import Model as Modelc2t
+# from .cnets_svip import Model as Modelsvip
+# from .cnets_disco import Model as Modeldisco
+# from .cnets_gamma import Model as Modelgamma
+# from .cnets_spec_plus import Model as Modelspecplus
+from .cnets import Model as Modelddd
+from .cnets import Model as Modelc2t
+from .cnets import Model as Modelsvip
+from .cnets import Model as Modeldisco
+from .cnets import Model as Modelgamma
+from .cnets import Model as Modelspecplus
+# <<<
+
 from .configs import EConfig
 from stable_baselines3 import PPO
 from stable_baselines3.common.policies import ActorCriticPolicy

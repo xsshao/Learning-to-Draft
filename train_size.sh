@@ -17,10 +17,10 @@ batch_size=64
 n_steps=128
 lr=3e-4
 
+# --rl_token_model_path "${rl_token_model_path}" \
 python3 -m rl.rl_total \
     --base_model_path ${base_model_path} \
     --ea_model_path ${ea_model_path} \
-    --rl_token_model_path "${rl_token_model_path}" \
     --rl_checkpoint_path "${rl_checkpoint_path}" \
     --data_dir ${data_dir} \
     --dataset_train ${dataset_train} \
