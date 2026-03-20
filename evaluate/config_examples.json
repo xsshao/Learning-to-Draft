@@ -1,0 +1,96 @@
+# Benchmark configuration examples
+# Save as config.json and pass to scripts
+
+{
+  "configurations": {
+    "quick_test": {
+      "description": "Quick test on single dataset with 10 samples",
+      "base_model_path": "meta-llama/Llama-3.1-8B-Instruct",
+      "ea_model_path": "yuhuili/EAGLE3-LLaMA3.1-Instruct-8B",
+      "size_model_path": "",
+      "depth_model_path": "",
+      "data_dir": "./eagle/data",
+      "dataset_names": ["humaneval"],
+      "num_samples": 10,
+      "temperature": 0.0,
+      "output_dir": "./evaluate/results_quick"
+    },
+
+    "baseline_vs_eagle3": {
+      "description": "Compare baseline with static Eagle3 (no RL)",
+      "base_model_path": "meta-llama/Llama-3.1-8B-Instruct",
+      "ea_model_path": "yuhuili/EAGLE3-LLaMA3.1-Instruct-8B",
+      "size_model_path": "",
+      "depth_model_path": "",
+      "data_dir": "./eagle/data",
+      "dataset_names": ["humaneval", "alpaca"],
+      "num_samples": 50,
+      "temperature": 0.0,
+      "output_dir": "./evaluate/results_eagle3_baseline"
+    },
+
+    "full_rl_benchmark": {
+      "description": "Full benchmark with both RL models on all datasets",
+      "base_model_path": "meta-llama/Llama-3.1-8B-Instruct",
+      "ea_model_path": "yuhuili/EAGLE3-LLaMA3.1-Instruct-8B",
+      "size_model_path": "./checkpoints/ppo_speculative_decoder_controller_rebuttal.zip",
+      "depth_model_path": "./checkpoints/ppo_speculative_decoder_controller_v1_single_action.zip",
+      "data_dir": "./eagle/data",
+      "dataset_names": ["humaneval", "alpaca", "mt_bench", "gsm8k", "qa"],
+      "num_samples": 200,
+      "temperature": 0.0,
+      "output_dir": "./evaluate/results_full_rl"
+    },
+
+    "temperature_ablation": {
+      "description": "Test robustness at different temperatures",
+      "configs": [
+        {
+          "temperature": 0.0,
+          "output_dir": "./evaluate/results_temp_0.0"
+        },
+        {
+          "temperature": 0.5,
+          "output_dir": "./evaluate/results_temp_0.5"
+        },
+        {
+          "temperature": 1.0,
+          "output_dir": "./evaluate/results_temp_1.0"
+        }
+      ],
+      "base_config": {
+        "base_model_path": "meta-llama/Llama-3.1-8B-Instruct",
+        "ea_model_path": "yuhuili/EAGLE3-LLaMA3.1-Instruct-8B",
+        "size_model_path": "./checkpoints/ppo_speculative_decoder_controller_rebuttal.zip",
+        "depth_model_path": "./checkpoints/ppo_speculative_decoder_controller_v1_single_action.zip",
+        "data_dir": "./eagle/data",
+        "dataset_names": ["humaneval"],
+        "num_samples": 100
+      }
+    },
+
+    "paper_reproduction": {
+      "description": "Reproduce results from the paper (Section 5.2, Table 1)",
+      "note": "Requires training on all mentioned models. This config is template.",
+      "base_model_paths": [
+        "meta-llama/Llama-3.1-8B-Instruct",
+        "lmsys/vicuna-13b-v1.3",
+        "deepseek-ai/deepseek-r1-distill-llama-8b",
+        "Qwen/Qwen3-14B",
+        "Qwen/Qwen3-32B"
+      ],
+      "ea_model_paths": {
+        "meta-llama/Llama-3.1-8B-Instruct": "yuhuili/EAGLE3-LLaMA3.1-Instruct-8B",
+        "lmsys/vicuna-13b-v1.3": "yuhuili/EAGLE3-Vicuna",
+        "deepseek-ai/deepseek-r1-distill-llama-8b": "yuhuili/EAGLE3-DeepSeek",
+        "Qwen/Qwen3-14B": "custom/EAGLE3-Qwen3-14B",
+        "Qwen/Qwen3-32B": "custom/EAGLE3-Qwen3-32B"
+      },
+      "data_dir": "./eagle/data",
+      "dataset_names": ["humaneval", "alpaca", "mt_bench", "gsm8k", "qa"],
+      "num_samples": 200,
+      "temperature": 0.0,
+      "output_dir": "./evaluate/results_paper_reproduction"
+    }
+  }
+}

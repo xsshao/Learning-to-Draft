@@ -1,4 +1,5 @@
 wandb/
+checkpoints/ppo_speculative_tensorboard
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
