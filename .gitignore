@@ -1,5 +1,6 @@
-wandb/
-checkpoints/ppo_speculative_tensorboard
+/wandb/
+/checkpoints/ppo_speculative_tensorboard/
+/meta-llama/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
