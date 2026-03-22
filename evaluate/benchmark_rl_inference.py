@@ -20,14 +20,22 @@ import os
 import argparse
 import json
 import time
-from pathlib import Path
 from typing import Dict, List, Tuple, Any
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
-
 import torch
-from transformers import AutoTokenizer
 from stable_baselines3 import PPO
+from tqdm.rich import tqdm
+
+OFFICIAL_SYSTEM_PROMPT = (
+    "You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  "
+    "Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. "
+    "Please ensure that your responses are socially unbiased and positive in nature.\n\n"
+    "If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. "
+    "If you don't know the answer to a question, please don't share false information."
+)
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
@@ -37,14 +45,16 @@ try:
     from eagle.model.ea_model import EaModel
     from eagle.model.kv_cache import initialize_past_key_values
     from eagle.model.utils import (
-        initialize_tree, tree_decoding, evaluate_posterior,
-        reset_past_key_values, reset_tree_mode
+        initialize_tree,
+        tree_decoding,
+        evaluate_posterior,
+        reset_past_key_values,
+        reset_tree_mode,
+        prepare_logits_processor,
     )
 except ImportError:
     print("⚠️  Note: Eagle models not fully available; some features may be limited.")
 
-from datetime import datetime
-from tqdm.rich import tqdm
 
 def to_jsonable(obj: Any):
     if isinstance(obj, dict):
@@ -68,15 +78,15 @@ def to_jsonable(obj: Any):
     return obj
 
 
-def load_and_sample_data(data_dir: str, dataset_name: str, num_samples: int, 
+def load_and_sample_data(data_dir: str, dataset_name: str, num_samples: int,
                          tokenizer, max_seq_len: int = 1748) -> List[Dict]:
     """Load and sample from dataset."""
     dataset_path = os.path.join(data_dir, dataset_name, "question.jsonl")
-    
+
     if not os.path.exists(dataset_path):
         print(f"⚠️  Dataset {dataset_path} not found.")
         return []
-    
+
     samples = []
     with open(dataset_path, "r") as f:
         for i, line in enumerate(f):
@@ -86,10 +96,7 @@ def load_and_sample_data(data_dir: str, dataset_name: str, num_samples: int,
             messages = [
                 {
                     "role": "system",
-                    "content": (
-                        "You are a helpful, respectful and honest assistant. "
-                        "Always answer as helpfully as possible, while being safe."
-                    )
+                    "content": OFFICIAL_SYSTEM_PROMPT
                 },
                 {"role": "user", "content": data["turns"][0]}
             ]
@@ -97,73 +104,55 @@ def load_and_sample_data(data_dir: str, dataset_name: str, num_samples: int,
                 messages, tokenize=False, add_generation_prompt=True
             )
             input_ids = tokenizer.encode(prompt, add_special_tokens=False, return_tensors="pt")
-            
+
             if input_ids.shape[1] <= max_seq_len:
                 samples.append({
                     "prompt": prompt,
                     "input_ids": input_ids,
                     "original_question": data["turns"][0]
                 })
-    
+
     print(f"✓ Loaded {len(samples)} samples from {dataset_name}")
     return samples
 
 
-def baseline_decoding(model, input_ids: torch.Tensor, max_new_tokens: int = 256,
-                     temperature: float = 0.0) -> Tuple[int, float]:
-    """
-    Vanilla auto-regressive decoding (baseline).
-    Returns: (num_generated_tokens, elapsed_time_in_seconds)
-    """
-    start_time = time.time()
-    
-    with torch.no_grad():
-        generated_ids = input_ids.clone()
-        
-        for _ in range(max_new_tokens):
-            outputs = model.base_model(
-                input_ids=generated_ids,
-                use_cache=False,
-                return_dict=True
-            )
-            logits = outputs.logits[:, -1, :]
-            
-            if temperature > 0:
-                logits = logits / temperature
-                probs = torch.softmax(logits, dim=-1)
-                next_id = torch.multinomial(probs, num_samples=1)
-            else:
-                next_id = torch.argmax(logits, dim=-1, keepdim=True)
-            
-            generated_ids = torch.cat([generated_ids, next_id], dim=1)
-            
-            # Stop if EOS reached
-            if next_id.item() == model.tokenizer.eos_token_id:
-                break
-    
-    elapsed = time.time() - start_time
-    num_generated = generated_ids.shape[1] - input_ids.shape[1]
-    
-    return num_generated, elapsed
+def _build_logits_processor(temperature: float):
+    if temperature > 1e-5:
+        return prepare_logits_processor(temperature=temperature, top_p=0.0, top_k=0)
+    return None
 
 
-def eagle3_decoding(model, input_ids: torch.Tensor, 
-                   draft_depth: int = 8, verification_size: int = 60,
-                   max_new_tokens: int = 256, temperature: float = 0.0,
-                   logits_processor=None) -> Dict:
-    """
-    Eagle3 tree-based speculative decoding with static config.
-    Returns: dict with metrics (tokens, time, acceptance_length, throughput)
-    """
-    start_time = time.time()
-    
-    current_input_ids = input_ids.clone()
-    device = next(model.parameters()).device
-    num_total_generated = 0
-    total_cycles = 0
-    total_accepted = 0
-    
-    # Initialize KV cache
+def _get_stop_token_ids(model) -> set[int]:
+    stop_ids = set()
+    tokenizer = getattr(model, "tokenizer", None)
+    if tokenizer is None:
+        return stop_ids
+    if tokenizer.eos_token_id is not None:
+        stop_ids.add(int(tokenizer.eos_token_id))
+    try:
+        eot_id = tokenizer.convert_tokens_to_ids("<|eot_id|>")
+        if eot_id is not None and eot_id >= 0:
+            stop_ids.add(int(eot_id))
+    except Exception:
+        pass
+    return stop_ids
+
+
+def _should_stop(model, current_input_ids: torch.Tensor, input_len: int,
+                 num_total_generated: int, max_new_tokens: int,
+                 max_seq_len: int = 1748) -> bool:
+    if current_input_ids.shape[1] >= max_seq_len or num_total_generated >= max_new_tokens:
+        return True
+
+    stop_ids = _get_stop_token_ids(model)
+    if not stop_ids:
+        return False
+
+    generated_tokens = current_input_ids[0, input_len:].tolist()
+    return any(token_id in stop_ids for token_id in generated_tokens)
+
+
+def _init_kv_cache(model, max_length: int = 2048):
     if hasattr(model, "past_key_values") and model.past_key_values is not None:
         reset_past_key_values(model.past_key_values)
         past_key_values = model.past_key_values
@@ -172,175 +161,452 @@ def eagle3_decoding(model, input_ids: torch.Tensor,
         current_length_data.zero_()
     else:
         past_key_values, past_key_values_data, current_length_data = initialize_past_key_values(
-            model.base_model, max_length=2048
+            model.base_model, max_length=max_length
         )
         model.past_key_values = past_key_values
         model.past_key_values_data = past_key_values_data
         model.current_length_data = current_length_data
-    
+
     reset_tree_mode(model)
     if hasattr(model, "ea_layer") and hasattr(model.ea_layer, "reset_kv"):
         model.ea_layer.reset_kv()
-    
+
+    return past_key_values, past_key_values_data, current_length_data
+
+
+def _copy_selected_kv(past_key_values_data, select_indices: torch.Tensor, prev_len: int):
+    for pkv_data in past_key_values_data:
+        tgt = pkv_data[..., select_indices.to(pkv_data.device), :]
+        dst = pkv_data[..., prev_len: prev_len + tgt.shape[-2], :]
+        dst.copy_(tgt, non_blocking=True)
+
+
+def _policy_predict_discrete(policy, obs: np.ndarray, device: torch.device) -> int:
+    obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+    with torch.inference_mode():
+        action = policy._predict(obs_tensor, deterministic=True)
+    return int(action.squeeze().item())
+
+
+class EagleRLController:
+    def __init__(self, model, current_input_ids: torch.Tensor, past_key_values,
+                 past_key_values_data, current_length_data, logits_processor=None,
+                 depth_policy=None, size_policy=None):
+        self.model = model
+        self.device = next(model.parameters()).device
+        self.current_input_ids = current_input_ids
+        self.past_key_values = past_key_values
+        self.past_key_values_data = past_key_values_data
+        self.current_length_data = current_length_data
+        self.logits_processor = logits_processor
+        self.depth_policy = depth_policy
+        self.size_policy = size_policy
+        self.ea_layer_top_k = model.ea_layer.top_k
+        self.max_draft_depth = 12
+        self.obs_size = 1268
+        self.obs_size_depth = 128
+        self.cu_scores_for_obs = None
+        self.random_depth_this_step = 0
+        self.new_token_count = 0
+
+    def _get_obs_depth(self) -> np.ndarray:
+        obs = np.zeros((self.obs_size_depth,), dtype=np.float32)
+        if self.cu_scores_for_obs is not None:
+            scores_np = self.cu_scores_for_obs.detach().float().cpu().numpy().flatten()
+            obs[0: len(scores_np)] = scores_np
+        obs[100:114] = self.current_input_ids.shape[1] / 1000.0
+        obs[114:128] = self.cnet_step / 10.0
+        return obs
+
+    def _get_obs(self) -> np.ndarray:
+        obs = np.zeros((self.obs_size,), dtype=np.float32)
+        scores = torch.cat(self.scores_list, dim=0).view(-1)
+        scores_np = scores.detach().float().cpu().numpy().flatten()
+        obs[0: len(scores_np)] = scores_np
+        obs[1210:1239] = self.current_input_ids.shape[1] / 1000.0
+        obs[1239:1268] = self.cnet_step / 10.0
+        return obs
+
+    def bootstrap(self) -> int:
+        draft_tokens, retrieve_indices, tree_mask, tree_position_ids, _, _, _ = initialize_tree(
+            self.current_input_ids, self.model, self.past_key_values, self.logits_processor
+        )
+        self.model.base_model.model.tree_mask = tree_mask.to(self.device)
+        logits_verify, hidden_state_new_verify, _ = tree_decoding(
+            self.model,
+            draft_tokens.to(self.device),
+            self.past_key_values,
+            tree_position_ids.to(self.device),
+            self.current_input_ids,
+            retrieve_indices.to(self.device),
+        )
+
+        padding = torch.full((1, 1), -1, dtype=torch.long, device=self.device)
+        draft_tokens_padded = torch.cat((draft_tokens, padding), dim=1)
+        candidates = draft_tokens_padded[0, retrieve_indices.to(self.device)]
+        best_candidate_idx, accept_length, sample_p = evaluate_posterior(
+            logits_verify, candidates, self.logits_processor
+        )
+
+        prev_len = self.current_input_ids.shape[1]
+        accepted_tokens = candidates[best_candidate_idx, :accept_length + 1]
+        self.current_input_ids = torch.cat(
+            (self.current_input_ids, accepted_tokens.unsqueeze(0).to(self.current_input_ids.device)),
+            dim=-1,
+        )
+
+        select_indices = retrieve_indices[best_candidate_idx, :accept_length + 1] + prev_len
+        _copy_selected_kv(self.past_key_values_data, select_indices, prev_len)
+        self.current_length_data.fill_(self.current_input_ids.shape[1])
+
+        retrieve_hidden_state_new = hidden_state_new_verify[:, retrieve_indices.to(hidden_state_new_verify.device)]
+        accepted_hidden_state_base = retrieve_hidden_state_new[:, best_candidate_idx, :accept_length + 1]
+        next_token_sampled = torch.argmax(sample_p).unsqueeze(0).unsqueeze(0)
+
+        self.new_token_count += accept_length + 1
+        self.accepted_hidden_state_base_for_next_topk = accepted_hidden_state_base
+        self.next_token_sampled_for_next_topk = next_token_sampled
+        return int(accept_length + 1)
+
+    def _prepare_for_drafting(self, accepted_hidden_state_base, next_token_sampled):
+        self.hidden_states_for_topk_ea_layer = accepted_hidden_state_base
+        self.input_ids_for_topk_first_pass = torch.cat(
+            (self.current_input_ids, next_token_sampled.to(self.current_input_ids.device)), dim=1
+        )
+        self.current_sample_token_for_topk = self.input_ids_for_topk_first_pass[:, -1]
+
+        self.scores_list = []
+        self.parents_list = []
+        self.ss_token_list = []
+
+        input_ids_for_ea_layer_first_iter = self.input_ids_for_topk_first_pass[:, 1:]
+        self.len_posi_for_topk_loop = input_ids_for_ea_layer_first_iter.shape[1]
+
+        self.model.ea_layer.reset()
+        kv_len = 0
+        if hasattr(self.model.ea_layer, "stable_kv") and self.model.ea_layer.stable_kv is not None:
+            kv_len = self.model.ea_layer.stable_kv[0][0].shape[2]
+        input_ids_for_forward = input_ids_for_ea_layer_first_iter[:, kv_len:] if kv_len > 0 else input_ids_for_ea_layer_first_iter
+
+        out_hidden, past_key_values_ealayer = self.model.ea_layer(
+            self.hidden_states_for_topk_ea_layer,
+            input_ids=input_ids_for_forward,
+            past_key_values=self.model.ea_layer.stable_kv if kv_len > 0 else None,
+            use_cache=True,
+        )
+
+        self.model.ea_layer.stable_kv = past_key_values_ealayer
+        self.current_past_key_values_ealayer = past_key_values_ealayer
+
+        last_hidden_ea_layer = out_hidden[:, -1]
+        last_headout = self.model.ea_layer.lm_head(self.model.ea_layer.norm(last_hidden_ea_layer))
+        last_p = self.model.ea_layer.logsoftmax(last_headout)
+        top = torch.topk(last_p, self.ea_layer_top_k, dim=-1)
+        topk_index, topk_p = top.indices, top.values
+
+        current_scores = topk_p[0]
+        self.scores_list.append(current_scores[None])
+        self.current_scores_for_topk_loop_obs = current_scores
+        self.parents_list.append(torch.zeros(1, dtype=torch.long, device=current_scores.device))
+
+        if self.model.ea_layer.config.vocab_size == self.model.ea_layer.config.draft_vocab_size:
+            self.ss_token_list.append(topk_index)
+            input_ids_for_next_depth_iter = topk_index
+        else:
+            mapped_tokens = topk_index + self.model.ea_layer.d2t[topk_index]
+            self.ss_token_list.append(mapped_tokens)
+            input_ids_for_next_depth_iter = mapped_tokens
+
+        self.current_input_ids_for_topk_depth_iter = input_ids_for_next_depth_iter
+        self.current_input_hidden_for_topk_depth_iter = last_hidden_ea_layer[None].repeat(1, self.ea_layer_top_k, 1)
+        self.current_tree_mask_for_topk_loop = self.model.ea_layer.tree_mask_init.clone().to(self.device)
+        self.current_topk_cs_index_for_loop = torch.arange(
+            self.ea_layer_top_k, device=self.model.ea_layer.embed_tokens.weight.device
+        )
+        self.cnet_step = 0
+        self.cu_scores_for_obs = None
+
+    def _perform_dynamic_depth_expansion(self):
+        self.random_depth_this_step = self.max_draft_depth
+        for depth_idx in range(self.random_depth_this_step):
+            self.model.ea_layer.tree_mask = self.current_tree_mask_for_topk_loop
+            current_ea_layer_position_ids = self.len_posi_for_topk_loop + self.model.ea_layer.position_ids.to(self.device)
+
+            out_hidden, past_key_values_ealayer_new = self.model.ea_layer(
+                self.current_input_hidden_for_topk_depth_iter,
+                input_ids=self.current_input_ids_for_topk_depth_iter,
+                past_key_values=self.current_past_key_values_ealayer,
+                position_ids=current_ea_layer_position_ids,
+                use_cache=True,
+            )
+            self.len_posi_for_topk_loop += 1
+            self.current_past_key_values_ealayer = past_key_values_ealayer_new
+
+            bias1 = self.ea_layer_top_k if self.cnet_step > 0 else 0
+            bias2 = max(0, self.cnet_step - 1)
+            bias = 1 + self.ea_layer_top_k * self.ea_layer_top_k * bias2 + bias1
+
+            parents = self.current_topk_cs_index_for_loop + bias
+            self.parents_list.append(parents)
+
+            last_headout = self.model.ea_layer.lm_head(self.model.ea_layer.norm(out_hidden[0]))
+            last_p = self.model.ea_layer.logsoftmax(last_headout)
+            top = torch.topk(last_p, self.ea_layer_top_k, dim=-1)
+            topk_index, topk_p = top.indices, top.values
+
+            cu_scores = topk_p + self.current_scores_for_topk_loop_obs[:, None]
+            topk_cs = torch.topk(cu_scores.view(-1), self.ea_layer_top_k, dim=-1)
+            topk_cs_index_new, topk_cs_p_new = topk_cs.indices, topk_cs.values
+            self.cu_scores_for_obs = cu_scores.flatten()
+            self.current_scores_for_topk_loop_obs = topk_cs_p_new
+            self.current_topk_cs_index_for_loop = topk_cs_index_new
+
+            out_ids = (topk_cs_index_new // self.ea_layer_top_k).to(self.current_tree_mask_for_topk_loop.device)
+            self.current_input_hidden_for_topk_depth_iter = out_hidden[:, out_ids]
+            next_input_ids_val = topk_index.view(-1)[topk_cs_index_new][None]
+
+            if self.model.ea_layer.config.vocab_size == self.model.ea_layer.config.draft_vocab_size:
+                self.ss_token_list.append(topk_index)
+                self.current_input_ids_for_topk_depth_iter = next_input_ids_val
+            else:
+                mapped_tokens = next_input_ids_val + self.model.ea_layer.d2t[next_input_ids_val.squeeze()].unsqueeze(0)
+                self.ss_token_list.append(topk_index + self.model.ea_layer.d2t[topk_index.squeeze()])
+                self.current_input_ids_for_topk_depth_iter = mapped_tokens
+
+            self.scores_list.append(cu_scores)
+
+            if self.current_tree_mask_for_topk_loop.shape[2] > 0 and out_ids.max() < self.current_tree_mask_for_topk_loop.shape[2]:
+                self.current_tree_mask_for_topk_loop = torch.cat(
+                    (
+                        self.current_tree_mask_for_topk_loop[:, :, out_ids],
+                        self.model.ea_layer.tree_mask_init.clone().to(self.device),
+                    ),
+                    dim=3,
+                )
+            self.cnet_step += 1
+
+            if self.depth_policy is not None and depth_idx != self.random_depth_this_step - 1 and depth_idx % 3 == 2:
+                action_depth = _policy_predict_discrete(self.depth_policy, self._get_obs_depth(), self.device)
+                if action_depth == 0:
+                    self.random_depth_this_step = depth_idx + 1
+                    break
+
+    def _finalize_draft_tree(self, total_token_val_action: int):
+        scores_cat = torch.cat(self.scores_list, dim=0).view(-1)
+        ss_token_cat = torch.cat(self.ss_token_list, dim=0).view(-1)
+        actual_total_tokens = min(ss_token_cat.shape[0], total_token_val_action)
+
+        top_scores_indices = torch.topk(scores_cat, actual_total_tokens, dim=-1).indices
+        top_scores_indices_sorted = torch.sort(top_scores_indices).values
+
+        draft_tokens_flat = ss_token_cat[top_scores_indices_sorted]
+        finalized_draft_tokens = torch.cat(
+            (self.current_sample_token_for_topk.to(self.device), draft_tokens_flat), dim=0
+        ).unsqueeze(0)
+
+        num_final_draft_plus_sample = finalized_draft_tokens.shape[1]
+        draft_parents_flat = torch.cat(self.parents_list, dim=0)[top_scores_indices_sorted // self.ea_layer_top_k].long()
+        mask_index = torch.searchsorted(top_scores_indices_sorted, draft_parents_flat - 1, right=False)
+        mask_index[draft_parents_flat == 0] = -1
+        mask_index = mask_index + 1
+        mask_index_list = mask_index.tolist()
+
+        tree_mask_bool = torch.eye(num_final_draft_plus_sample, device=self.device).bool()
+        tree_mask_bool[:, 0] = True
+        for i in range(actual_total_tokens):
+            tree_mask_bool[i + 1].add_(tree_mask_bool[mask_index_list[i]])
+
+        finalized_tree_mask = tree_mask_bool.float()[None, None]
+        finalized_tree_position_ids = torch.sum(tree_mask_bool.int(), dim=1) - 1
+
+        max_depth = torch.max(finalized_tree_position_ids) + 1
+        noleaf_index = torch.unique(mask_index).tolist()
+        leaf_num = actual_total_tokens - (len(noleaf_index) - 1)
+        retrieve_indices = torch.zeros(leaf_num, max_depth.item(), dtype=torch.long) - 1
+        retrieve_indices = retrieve_indices.tolist()
+
+        rid = 0
+        position_ids_list = finalized_tree_position_ids.tolist()
+        for i in range(actual_total_tokens + 1):
+            if i not in noleaf_index:
+                cid = i
+                depth = position_ids_list[i]
+                for j in reversed(range(depth + 1)):
+                    retrieve_indices[rid][j] = cid
+                    cid = mask_index_list[cid - 1] if cid > 0 else -1
+                rid += 1
+
+        finalized_retrieve_indices = torch.tensor(retrieve_indices, dtype=torch.long)
+        return finalized_draft_tokens, finalized_tree_mask, finalized_tree_position_ids, finalized_retrieve_indices
+
+    def run_cycle(self) -> int:
+        self._prepare_for_drafting(
+            self.accepted_hidden_state_base_for_next_topk,
+            self.next_token_sampled_for_next_topk,
+        )
+        self._perform_dynamic_depth_expansion()
+
+        if self.size_policy is None:
+            total_token_val_action = 60
+        else:
+            action = _policy_predict_discrete(self.size_policy, self._get_obs(), self.device)
+            total_token_val_action = (action + 1) * 10
+
+        finalized_draft_tokens, finalized_tree_mask, finalized_tree_position_ids, finalized_retrieve_indices = (
+            self._finalize_draft_tree(total_token_val_action)
+        )
+
+        self.model.base_model.model.tree_mask = finalized_tree_mask.to(self.device)
+        logits_verify, hidden_state_new_verify, _ = tree_decoding(
+            self.model,
+            finalized_draft_tokens.to(self.device),
+            self.past_key_values,
+            finalized_tree_position_ids.to(self.device),
+            self.current_input_ids,
+            finalized_retrieve_indices.to(self.device),
+        )
+
+        padding = torch.full((1, 1), -1, dtype=torch.long, device=self.device)
+        draft_tokens_padded = torch.cat((finalized_draft_tokens, padding), dim=1)
+        candidates = draft_tokens_padded[0, finalized_retrieve_indices.to(self.device)]
+        best_candidate_idx, accept_length, sample_p = evaluate_posterior(
+            logits_verify, candidates, self.logits_processor
+        )
+
+        prev_len = self.current_input_ids.shape[1]
+        accepted_tokens = candidates[best_candidate_idx, :accept_length + 1]
+        self.current_input_ids = torch.cat(
+            (self.current_input_ids, accepted_tokens.unsqueeze(0).to(self.current_input_ids.device)),
+            dim=-1,
+        )
+
+        select_indices = finalized_retrieve_indices[best_candidate_idx, :accept_length + 1] + prev_len
+        _copy_selected_kv(self.past_key_values_data, select_indices, prev_len)
+        self.current_length_data.fill_(self.current_input_ids.shape[1])
+
+        retrieve_hidden_state_new = hidden_state_new_verify[:, finalized_retrieve_indices.to(hidden_state_new_verify.device)]
+        self.accepted_hidden_state_base_for_next_topk = retrieve_hidden_state_new[:, best_candidate_idx, :accept_length + 1]
+        self.next_token_sampled_for_next_topk = torch.argmax(sample_p).unsqueeze(0).unsqueeze(0)
+        self.new_token_count += accept_length + 1
+        return int(accept_length + 1)
+
+
+def baseline_decoding(model, input_ids: torch.Tensor, max_new_tokens: int = 256,
+                      temperature: float = 0.0) -> Tuple[int, float]:
+    """
+    Vanilla auto-regressive decoding (baseline) aligned with the repo's official
+    naivegenerate evaluation path.
+    Returns: (num_generated_tokens, elapsed_time_in_seconds)
+    """
+    del max_new_tokens
+    start_time = time.time()
+    is_llama3 = 128009 in _get_stop_token_ids(model)
     with torch.no_grad():
-        while num_total_generated < max_new_tokens:
-            cycle_start = time.time()
-            if hasattr(model, "ea_layer") and hasattr(model.ea_layer, "reset_kv"):
-                model.ea_layer.reset_kv()
-            
-            # Initialize tree
-            draft_tokens, retrieve_indices, tree_mask, tree_position_ids, _, _, _ = initialize_tree(
-                current_input_ids, model, past_key_values, logits_processor
-            )
-            
-            model.base_model.model.tree_mask = tree_mask.to(device)
-            
-            # Verify with target model
-            logits_verify, hidden_state_new_verify, _ = tree_decoding(
-                model, draft_tokens.to(device), past_key_values,
-                tree_position_ids.to(device), current_input_ids, retrieve_indices.to(device)
-            )
-            
-            # Evaluate posterior
-            padding = torch.full((1, 1), -1, dtype=torch.long, device=device)
-            draft_tokens_padded = torch.cat((draft_tokens, padding), dim=1)
-            candidates = draft_tokens_padded[0, retrieve_indices.to(device)]
-            
-            best_idx, accept_len, sample_p = evaluate_posterior(
-                logits_verify, candidates, logits_processor
-            )
-            
-            # Update state
-            prev_len = current_input_ids.shape[1]
-            accepted_tokens = candidates[best_idx, :accept_len + 1]
-            current_input_ids = torch.cat(
-                (current_input_ids, accepted_tokens.unsqueeze(0).to(current_input_ids.device)),
-                dim=-1
-            )
-            
-            # Update KV cache
-            select_indices = retrieve_indices[best_idx, :accept_len + 1] + prev_len
-            for pkv_data in past_key_values_data:
-                tgt = pkv_data[..., select_indices.to(pkv_data.device), :]
-                dst = pkv_data[..., prev_len: prev_len + tgt.shape[-2], :]
-                dst.copy_(tgt, non_blocking=True)
-            
-            current_length_data.fill_(current_input_ids.shape[1])
-            
-            num_total_generated += accept_len + 1
-            total_cycles += 1
-            total_accepted += accept_len + 1
-            
-            # Check termination
-            if current_input_ids.shape[1] >= 1748 or num_total_generated >= max_new_tokens:
-                break
-    
+        _, new_token, _ = model.naivegenerate(
+            input_ids.clone(),
+            temperature=temperature,
+            log=True,
+            is_llama3=is_llama3,
+        )
     elapsed = time.time() - start_time
-    
+    return int(new_token), elapsed
+
+
+def eagle3_decoding(model, input_ids: torch.Tensor,
+                    draft_depth: int = 5, verification_size: int = 60,
+                    max_new_tokens: int = 256, temperature: float = 0.0,
+                    logits_processor=None) -> Dict:
+    """
+    Eagle3 tree-based speculative decoding with static config, using the repo's
+    official eagenerate path so benchmark behavior matches the paper more closely.
+    """
+    del logits_processor, max_new_tokens
+    start_time = time.time()
+    is_llama3 = 128009 in _get_stop_token_ids(model)
+
+    original_depth = model.ea_layer.depth
+    original_total_tokens = model.ea_layer.total_tokens
+    model.ea_layer.depth = draft_depth
+    model.ea_layer.total_tokens = max(1, verification_size - 1)
+
+    try:
+        with torch.no_grad():
+            _, new_token, _, _, accept_lengths = model.eagenerate(
+                input_ids.clone(),
+                temperature=temperature,
+                log=True,
+                is_llama3=is_llama3,
+                pre_len=True,
+            )
+    finally:
+        model.ea_layer.depth = original_depth
+        model.ea_layer.total_tokens = original_total_tokens
+
+    elapsed = time.time() - start_time
+    total_cycles = len(accept_lengths)
+    total_accepted = sum(accept_lengths)
     return {
-        "tokens_generated": num_total_generated,
+        "tokens_generated": int(new_token),
         "elapsed_time": elapsed,
-        "throughput": num_total_generated / elapsed if elapsed > 0 else 0,
+        "throughput": new_token / elapsed if elapsed > 0 else 0,
         "num_cycles": total_cycles,
-        "avg_acceptance_len": total_accepted / total_cycles if total_cycles > 0 else 0,
-        "cycles_per_sec": total_cycles / elapsed if elapsed > 0 else 0
+        "avg_acceptance_len": (total_accepted / total_cycles) if total_cycles > 0 else 0,
+        "cycles_per_sec": total_cycles / elapsed if elapsed > 0 else 0,
     }
 
 
 def eagle3_rl_decoding(model, input_ids: torch.Tensor,
-                      size_policy=None, depth_policy=None,
-                      max_new_tokens: int = 256, temperature: float = 0.0,
-                      logits_processor=None) -> Dict:
+                       size_policy=None, depth_policy=None,
+                       max_new_tokens: int = 256, temperature: float = 0.0,
+                       logits_processor=None) -> Dict:
     """
     Eagle3 with learned RL policies for dynamic depth and verification size.
+    This mirrors the reset/step logic in rl_total.py.
     """
     start_time = time.time()
-    
+    logits_processor = logits_processor if logits_processor is not None else _build_logits_processor(temperature)
+
     current_input_ids = input_ids.clone()
-    device = next(model.parameters()).device
+    input_len = current_input_ids.shape[1]
     num_total_generated = 0
     total_cycles = 0
     total_accepted = 0
-    
-    # Initialize KV cache
-    if hasattr(model, "past_key_values") and model.past_key_values is not None:
-        reset_past_key_values(model.past_key_values)
-        past_key_values = model.past_key_values
-        past_key_values_data = model.past_key_values_data
-        current_length_data = model.current_length_data
-        current_length_data.zero_()
-    else:
-        past_key_values, past_key_values_data, current_length_data = initialize_past_key_values(
-            model.base_model, max_length=2048
-        )
-        model.past_key_values = past_key_values
-        model.past_key_values_data = past_key_values_data
-        model.current_length_data = current_length_data
-    
-    reset_tree_mode(model)
-    if hasattr(model, "ea_layer") and hasattr(model.ea_layer, "reset_kv"):
-        model.ea_layer.reset_kv()
-    
+
+    past_key_values, past_key_values_data, current_length_data = _init_kv_cache(model)
+    controller = EagleRLController(
+        model=model,
+        current_input_ids=current_input_ids,
+        past_key_values=past_key_values,
+        past_key_values_data=past_key_values_data,
+        current_length_data=current_length_data,
+        logits_processor=logits_processor,
+        depth_policy=depth_policy,
+        size_policy=size_policy,
+    )
+
     with torch.no_grad():
+        accepted = controller.bootstrap()
+        num_total_generated += accepted
+        total_accepted += accepted
+        total_cycles += 1
+
         while num_total_generated < max_new_tokens:
-            if hasattr(model, "ea_layer") and hasattr(model.ea_layer, "reset_kv"):
-                model.ea_layer.reset_kv()
-            # Initialize tree
-            draft_tokens, retrieve_indices, tree_mask, tree_position_ids, _, _, _ = initialize_tree(
-                current_input_ids, model, past_key_values, logits_processor
-            )
-            
-            model.base_model.model.tree_mask = tree_mask.to(device)
-            
-            # Verify
-            logits_verify, hidden_state_new_verify, _ = tree_decoding(
-                model, draft_tokens.to(device), past_key_values,
-                tree_position_ids.to(device), current_input_ids, retrieve_indices.to(device)
-            )
-            
-            # Evaluate
-            padding = torch.full((1, 1), -1, dtype=torch.long, device=device)
-            draft_tokens_padded = torch.cat((draft_tokens, padding), dim=1)
-            candidates = draft_tokens_padded[0, retrieve_indices.to(device)]
-            
-            best_idx, accept_len, sample_p = evaluate_posterior(
-                logits_verify, candidates, logits_processor
-            )
-            
-            # Update
-            prev_len = current_input_ids.shape[1]
-            accepted_tokens = candidates[best_idx, :accept_len + 1]
-            current_input_ids = torch.cat(
-                (current_input_ids, accepted_tokens.unsqueeze(0).to(current_input_ids.device)),
-                dim=-1
-            )
-            
-            # Update KV cache
-            select_indices = retrieve_indices[best_idx, :accept_len + 1] + prev_len
-            for pkv_data in past_key_values_data:
-                tgt = pkv_data[..., select_indices.to(pkv_data.device), :]
-                dst = pkv_data[..., prev_len: prev_len + tgt.shape[-2], :]
-                dst.copy_(tgt, non_blocking=True)
-            
-            current_length_data.fill_(current_input_ids.shape[1])
-            
-            num_total_generated += accept_len + 1
-            total_cycles += 1
-            total_accepted += accept_len + 1
-            
-            # Check termination
-            if current_input_ids.shape[1] >= 1748 or num_total_generated >= max_new_tokens:
+            if _should_stop(model, controller.current_input_ids, input_len, num_total_generated, max_new_tokens):
                 break
-    
+
+            accepted = controller.run_cycle()
+            num_total_generated += accepted
+            total_accepted += accepted
+            total_cycles += 1
+
     elapsed = time.time() - start_time
-    
     return {
         "tokens_generated": num_total_generated,
         "elapsed_time": elapsed,
         "throughput": num_total_generated / elapsed if elapsed > 0 else 0,
         "num_cycles": total_cycles,
         "avg_acceptance_len": total_accepted / total_cycles if total_cycles > 0 else 0,
-        "cycles_per_sec": total_cycles / elapsed if elapsed > 0 else 0
+        "cycles_per_sec": total_cycles / elapsed if elapsed > 0 else 0,
     }
 
 
@@ -349,34 +615,32 @@ def main():
     parser.add_argument("--base_model_path", type=str, default="meta-llama/Llama-3.1-8B-Instruct")
     parser.add_argument("--ea_model_path", type=str, default="yuhuili/EAGLE3-LLaMA3.1-Instruct-8B")
     parser.add_argument("--size_model_path", type=str, default="",
-                       help="Path to size RL model (.zip)")
+                        help="Path to size RL model (.zip)")
     parser.add_argument("--depth_model_path", type=str, default="",
-                       help="Path to depth RL model (.zip)")
+                        help="Path to depth RL model (.zip)")
     parser.add_argument("--data_dir", type=str, default="./eagle/data")
     parser.add_argument("--dataset_names", nargs="+", default=["humaneval"],
-                       help="Dataset names to evaluate on")
+                        help="Dataset names to evaluate on")
     parser.add_argument("--num_samples", type=int, default=20,
-                       help="Number of samples per dataset")
+                        help="Number of samples per dataset")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--output_dir", type=str, default="./evaluate/results")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
-    
+
     args = parser.parse_args()
-    
-    # Create output directory
+
     os.makedirs(args.output_dir, exist_ok=True)
-    
+
     print("=" * 80)
     print("🚀 RL-Enhanced Speculative Decoding Benchmark")
     print("=" * 80)
-    
-    # Load models
+
     print("\n📦 Loading models...")
     print(f"  Base model: {args.base_model_path}")
     print(f"  EA model: {args.ea_model_path}")
     print("Device:", args.device)
-    
+
     model = EaModel.from_pretrained(
         base_model_path=args.base_model_path,
         ea_model_path=args.ea_model_path,
@@ -389,137 +653,111 @@ def main():
         use_dyn_len=False,
     ).to(args.device)
     model.eval()
-    
+
     tokenizer = model.get_tokenizer()
-    
-    # Load RL models if provided
+
     size_policy = None
     depth_policy = None
-    
+
     if args.size_model_path and os.path.exists(args.size_model_path):
         print(f"  Loading size policy: {args.size_model_path}")
         try:
-            size_policy = PPO.load(args.size_model_path, device=args.device)
-            size_policy.policy.to(args.device)
-            size_policy.policy.eval()
+            size_policy = PPO.load(args.size_model_path, device=args.device).policy
+            size_policy.to(args.device)
+            size_policy.eval()
         except Exception as e:
             print(f"  ⚠️  Could not load size policy: {e}")
-    
+
     if args.depth_model_path and os.path.exists(args.depth_model_path):
         print(f"  Loading depth policy: {args.depth_model_path}")
         try:
-            depth_policy = PPO.load(args.depth_model_path, device=args.device)
-            depth_policy.policy.to(args.device)
-            depth_policy.policy.eval()
+            depth_policy = PPO.load(args.depth_model_path, device=args.device).policy
+            depth_policy.to(args.device)
+            depth_policy.eval()
         except Exception as e:
             print(f"  ⚠️  Could not load depth policy: {e}")
-    
-    # Benchmark on datasets
+
     print("\n" + "=" * 80)
     print("🔬 Starting benchmark...")
     print("=" * 80)
-    
+
     all_results = {}
-    
+
     for dataset_name in args.dataset_names:
         print(f"\n📊 Dataset: {dataset_name}")
         print("-" * 80)
-        
-        # Load dataset
-        samples = load_and_sample_data(
-            args.data_dir, dataset_name, args.num_samples, tokenizer
-        )
-        
+
+        samples = load_and_sample_data(args.data_dir, dataset_name, args.num_samples, tokenizer)
         if not samples:
             print(f"  ⚠️  Skipping {dataset_name} (no samples)")
             continue
-        
+
         dataset_results = {
             "baseline": [],
             "eagle3": [],
-            "eagle3_rl": []
+            "eagle3_rl": [],
         }
-        
+
         for i, sample in tqdm(enumerate(samples), total=len(samples), desc=f"Evaluating {dataset_name}"):
-            # if i % max(1, len(samples) // 5) == 0:
-            #     print(f"  Progress: {i}/{len(samples)}")
-            
             input_ids = sample["input_ids"].to(args.device)
-            
-            # Baseline
-            # try:
+
             tokens, elapsed = baseline_decoding(model, input_ids, temperature=args.temperature)
             dataset_results["baseline"].append({
                 "tokens": tokens,
                 "time": elapsed,
-                "throughput": tokens / elapsed if elapsed > 0 else 0
+                "throughput": tokens / elapsed if elapsed > 0 else 0,
             })
-            # except Exception as e:
-            #     print(f"    ❌ Baseline error on sample {i}: {e}")
-            
-            # Eagle3
-            # try:
-            res = eagle3_decoding(model, input_ids, temperature=args.temperature)
+
+            res = eagle3_decoding(model, input_ids, draft_depth=5, verification_size=60, temperature=args.temperature)
             dataset_results["eagle3"].append(res)
-            # except Exception as e:
-            #     print(f"    ❌ Eagle3 error on sample {i}: {e}")
-            
-            # Eagle3 + RL
-            if size_policy or depth_policy:
+
+            if size_policy is not None or depth_policy is not None:
                 try:
                     res = eagle3_rl_decoding(
-                        model, input_ids,
+                        model,
+                        input_ids,
                         size_policy=size_policy,
                         depth_policy=depth_policy,
-                        temperature=args.temperature
+                        temperature=args.temperature,
                     )
                     dataset_results["eagle3_rl"].append(res)
                 except Exception as e:
                     print(f"    ❌ Eagle3+RL error on sample {i}: {e}")
-        
-        # Aggregate results
+
         print(f"\n  Results for {dataset_name}:")
         print("  " + "-" * 76)
-        
+
         for method_name, results in dataset_results.items():
             if not results:
                 print(f"    {method_name:20s}: No results")
                 continue
-            
+
             results_df = pd.DataFrame(results)
-            
             if method_name == "baseline":
                 avg_tokens = results_df["tokens"].mean()
                 avg_time = results_df["time"].mean()
                 avg_throughput = results_df["throughput"].mean()
-                print(f"    {method_name:20s}: "
-                      f"Tokens {avg_tokens:6.1f}, Time {avg_time:7.3f}s, "
-                      f"Throughput {avg_throughput:6.2f} tok/s")
+                print(
+                    f"    {method_name:20s}: Tokens {avg_tokens:6.1f}, Time {avg_time:7.3f}s, "
+                    f"Throughput {avg_throughput:6.2f} tok/s"
+                )
             else:
                 avg_tokens = results_df["tokens_generated"].mean()
                 avg_time = results_df["elapsed_time"].mean()
                 avg_throughput = results_df["throughput"].mean()
                 avg_acceptance = results_df["avg_acceptance_len"].mean()
-                print(f"    {method_name:20s}: "
-                      f"Tokens {avg_tokens:6.1f}, Time {avg_time:7.3f}s, "
-                      f"Throughput {avg_throughput:6.2f} tok/s, "
-                      f"Acceptance {avg_acceptance:5.2f}")
-        
+                print(
+                    f"    {method_name:20s}: Tokens {avg_tokens:6.1f}, Time {avg_time:7.3f}s, "
+                    f"Throughput {avg_throughput:6.2f} tok/s, Acceptance {avg_acceptance:5.2f}"
+                )
+
         all_results[dataset_name] = dataset_results
-    
-    # Save detailed results
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_file = os.path.join(args.output_dir, f"benchmark_results_{timestamp}.json")
     with open(output_file, "w") as f:
-        # Convert to JSON-serializable format
-        results_to_save = {}
-        for dataset, methods in all_results.items():
-            results_to_save[dataset] = {}
-            for method, res_list in methods.items():
-                results_to_save[dataset][method] = res_list
-        
-        json.dump(to_jsonable(results_to_save), f, indent=2)
-    
+        json.dump(to_jsonable(all_results), f, indent=2)
+
     print(f"\n✅ Results saved to {output_file}")
     print("=" * 80)
 
