@@ -181,10 +181,9 @@ def _copy_selected_kv(past_key_values_data, select_indices: torch.Tensor, prev_l
         dst.copy_(tgt, non_blocking=True)
 
 
-def _policy_predict_discrete(policy, obs: np.ndarray, device: torch.device) -> int:
-    obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+def _policy_predict_discrete(policy, obs_tensor: torch.Tensor) -> int:
     with torch.inference_mode():
-        action = policy._predict(obs_tensor, deterministic=True)
+        action = policy._predict(obs_tensor.unsqueeze(0), deterministic=True)
     return int(action.squeeze().item())
 
 
@@ -208,24 +207,28 @@ class EagleRLController:
         self.cu_scores_for_obs = None
         self.random_depth_this_step = 0
         self.new_token_count = 0
+        self.size_actions = []
+        self.depth_stop_points = []
+        self.depth_policy_calls = 0
+        self.obs_buffer = torch.zeros(self.obs_size, dtype=torch.float32, device=self.device)
+        self.obs_buffer_depth = torch.zeros(self.obs_size_depth, dtype=torch.float32, device=self.device)
 
-    def _get_obs_depth(self) -> np.ndarray:
-        obs = np.zeros((self.obs_size_depth,), dtype=np.float32)
+    def _get_obs_depth(self) -> torch.Tensor:
+        self.obs_buffer_depth.zero_()
         if self.cu_scores_for_obs is not None:
-            scores_np = self.cu_scores_for_obs.detach().float().cpu().numpy().flatten()
-            obs[0: len(scores_np)] = scores_np
-        obs[100:114] = self.current_input_ids.shape[1] / 1000.0
-        obs[114:128] = self.cnet_step / 10.0
-        return obs
+            scores = self.cu_scores_for_obs.detach().float().flatten()
+            self.obs_buffer_depth[0: scores.numel()] = scores
+        self.obs_buffer_depth[100:114].fill_(self.current_input_ids.shape[1] / 1000.0)
+        self.obs_buffer_depth[114:128].fill_(self.cnet_step / 10.0)
+        return self.obs_buffer_depth
 
-    def _get_obs(self) -> np.ndarray:
-        obs = np.zeros((self.obs_size,), dtype=np.float32)
-        scores = torch.cat(self.scores_list, dim=0).view(-1)
-        scores_np = scores.detach().float().cpu().numpy().flatten()
-        obs[0: len(scores_np)] = scores_np
-        obs[1210:1239] = self.current_input_ids.shape[1] / 1000.0
-        obs[1239:1268] = self.cnet_step / 10.0
-        return obs
+    def _get_obs(self) -> torch.Tensor:
+        self.obs_buffer.zero_()
+        scores = torch.cat(self.scores_list, dim=0).view(-1).detach().float()
+        self.obs_buffer[0: scores.numel()] = scores
+        self.obs_buffer[1210:1239].fill_(self.current_input_ids.shape[1] / 1000.0)
+        self.obs_buffer[1239:1268].fill_(self.cnet_step / 10.0)
+        return self.obs_buffer
 
     def bootstrap(self) -> int:
         draft_tokens, retrieve_indices, tree_mask, tree_position_ids, _, _, _ = initialize_tree(
@@ -386,10 +389,13 @@ class EagleRLController:
             self.cnet_step += 1
 
             if self.depth_policy is not None and depth_idx != self.random_depth_this_step - 1 and depth_idx % 3 == 2:
-                action_depth = _policy_predict_discrete(self.depth_policy, self._get_obs_depth(), self.device)
+                self.depth_policy_calls += 1
+                action_depth = _policy_predict_discrete(self.depth_policy, self._get_obs_depth())
                 if action_depth == 0:
                     self.random_depth_this_step = depth_idx + 1
                     break
+
+        self.depth_stop_points.append(int(self.random_depth_this_step))
 
     def _finalize_draft_tree(self, total_token_val_action: int):
         scores_cat = torch.cat(self.scores_list, dim=0).view(-1)
@@ -447,10 +453,13 @@ class EagleRLController:
         self._perform_dynamic_depth_expansion()
 
         if self.size_policy is None:
+            action = 5
             total_token_val_action = 60
         else:
-            action = _policy_predict_discrete(self.size_policy, self._get_obs(), self.device)
+            action = _policy_predict_discrete(self.size_policy, self._get_obs())
             total_token_val_action = (action + 1) * 10
+
+        self.size_actions.append(int(action))
 
         finalized_draft_tokens, finalized_tree_mask, finalized_tree_position_ids, finalized_retrieve_indices = (
             self._finalize_draft_tree(total_token_val_action)
@@ -489,6 +498,17 @@ class EagleRLController:
         self.next_token_sampled_for_next_topk = torch.argmax(sample_p).unsqueeze(0).unsqueeze(0)
         self.new_token_count += accept_length + 1
         return int(accept_length + 1)
+
+    def get_stats(self) -> Dict[str, float]:
+        avg_size_action = float(np.mean(self.size_actions)) if self.size_actions else 0.0
+        avg_size_tokens = float(np.mean([(action + 1) * 10 for action in self.size_actions])) if self.size_actions else 0.0
+        avg_depth_stop = float(np.mean(self.depth_stop_points)) if self.depth_stop_points else 0.0
+        return {
+            "avg_size_action": avg_size_action,
+            "avg_size_tokens": avg_size_tokens,
+            "avg_depth_stop": avg_depth_stop,
+            "depth_policy_calls": float(self.depth_policy_calls),
+        }
 
 
 def baseline_decoding(model, input_ids: torch.Tensor, max_new_tokens: int = 256,
@@ -600,6 +620,7 @@ def eagle3_rl_decoding(model, input_ids: torch.Tensor,
             total_cycles += 1
 
     elapsed = time.time() - start_time
+    stats = controller.get_stats()
     return {
         "tokens_generated": num_total_generated,
         "elapsed_time": elapsed,
@@ -607,6 +628,7 @@ def eagle3_rl_decoding(model, input_ids: torch.Tensor,
         "num_cycles": total_cycles,
         "avg_acceptance_len": total_accepted / total_cycles if total_cycles > 0 else 0,
         "cycles_per_sec": total_cycles / elapsed if elapsed > 0 else 0,
+        **stats,
     }
 
 
@@ -664,6 +686,7 @@ def main():
         try:
             size_policy = PPO.load(args.size_model_path, device=args.device).policy
             size_policy.to(args.device)
+            # UserWarning: You are trying to run PPO on the GPU, but it is primarily intended to run on the CPU when not using a CNN policy (you are using ActorCriticPolicy which should be a MlpPolicy). See https://github.com/DLR-RM/stable-baselines3/issues/1245 for more info. You can pass `device='cpu'` or `export CUDA_VISIBLE_DEVICES=` to force usingut it is primarily intended to run on the CPU w the CPU.Note: The model will train, but the GPU utilization will be poor and the training might take longer than on CPU.
             size_policy.eval()
         except Exception as e:
             print(f"  ⚠️  Could not load size policy: {e}")
@@ -746,9 +769,14 @@ def main():
                 avg_time = results_df["elapsed_time"].mean()
                 avg_throughput = results_df["throughput"].mean()
                 avg_acceptance = results_df["avg_acceptance_len"].mean()
+                extra = ""
+                if method_name == "eagle3_rl" and "avg_size_tokens" in results_df.columns:
+                    avg_size_tokens = results_df["avg_size_tokens"].mean()
+                    avg_depth_stop = results_df["avg_depth_stop"].mean()
+                    extra = f", SizeTok {avg_size_tokens:5.1f}, DepthStop {avg_depth_stop:4.2f}"
                 print(
                     f"    {method_name:20s}: Tokens {avg_tokens:6.1f}, Time {avg_time:7.3f}s, "
-                    f"Throughput {avg_throughput:6.2f} tok/s, Acceptance {avg_acceptance:5.2f}"
+                    f"Throughput {avg_throughput:6.2f} tok/s, Acceptance {avg_acceptance:5.2f}{extra}"
                 )
 
         all_results[dataset_name] = dataset_results

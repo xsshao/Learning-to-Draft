@@ -1,0 +1,210 @@
+{
+  "humaneval": {
+    "baseline": [
+      {
+        "tokens": 206,
+        "time": 5.282898426055908,
+        "throughput": 38.993746119361774
+      },
+      {
+        "tokens": 383,
+        "time": 9.410293102264404,
+        "throughput": 40.70011378368634
+      },
+      {
+        "tokens": 293,
+        "time": 7.105172872543335,
+        "throughput": 41.237561035600685
+      },
+      {
+        "tokens": 247,
+        "time": 6.102274179458618,
+        "throughput": 40.47671290015903
+      },
+      {
+        "tokens": 513,
+        "time": 12.524733543395996,
+        "throughput": 40.95895519234364
+      },
+      {
+        "tokens": 223,
+        "time": 5.530409336090088,
+        "throughput": 40.3225125751103
+      },
+      {
+        "tokens": 373,
+        "time": 8.980835914611816,
+        "throughput": 41.53288218896519
+      },
+      {
+        "tokens": 435,
+        "time": 10.349649667739868,
+        "throughput": 42.03040817467537
+      }
+    ],
+    "eagle3": [
+      {
+        "tokens_generated": 206,
+        "elapsed_time": 1.2942569255828857,
+        "throughput": 159.16468811035156,
+        "num_cycles": 29,
+        "avg_acceptance_len": 7.103448275862069,
+        "cycles_per_sec": 22.406679405589788
+      },
+      {
+        "tokens_generated": 383,
+        "elapsed_time": 2.799990653991699,
+        "throughput": 136.7861785888672,
+        "num_cycles": 71,
+        "avg_acceptance_len": 5.394366197183099,
+        "cycles_per_sec": 25.35722749602095
+      },
+      {
+        "tokens_generated": 291,
+        "elapsed_time": 1.6314711570739746,
+        "throughput": 178.3666229248047,
+        "num_cycles": 41,
+        "avg_acceptance_len": 7.097560975609756,
+        "cycles_per_sec": 25.13069251774763
+      },
+      {
+        "tokens_generated": 225,
+        "elapsed_time": 1.2241415977478027,
+        "throughput": 183.80226135253906,
+        "num_cycles": 31,
+        "avg_acceptance_len": 7.258064516129032,
+        "cycles_per_sec": 25.323867808294683
+      },
+      {
+        "tokens_generated": 518,
+        "elapsed_time": 2.692690134048462,
+        "throughput": 192.3726806640625,
+        "num_cycles": 69,
+        "avg_acceptance_len": 7.507246376811594,
+        "cycles_per_sec": 25.624931412460164
+      },
+      {
+        "tokens_generated": 223,
+        "elapsed_time": 1.2057433128356934,
+        "throughput": 184.9481658935547,
+        "num_cycles": 29,
+        "avg_acceptance_len": 7.689655172413793,
+        "cycles_per_sec": 24.051553669244218
+      },
+      {
+        "tokens_generated": 373,
+        "elapsed_time": 2.0263512134552,
+        "throughput": 184.07470703125,
+        "num_cycles": 52,
+        "avg_acceptance_len": 7.173076923076923,
+        "cycles_per_sec": 25.661889042094057
+      },
+      {
+        "tokens_generated": 435,
+        "elapsed_time": 2.793259620666504,
+        "throughput": 155.73202514648438,
+        "num_cycles": 72,
+        "avg_acceptance_len": 6.041666666666667,
+        "cycles_per_sec": 25.776336530730347
+      }
+    ],
+    "eagle3_rl": [
+      {
+        "tokens_generated": 206,
+        "elapsed_time": 1.3351609706878662,
+        "throughput": 154.28851241350333,
+        "num_cycles": 27,
+        "avg_acceptance_len": 7.62962962962963,
+        "cycles_per_sec": 20.222280753226165,
+        "avg_size_action": 5.0,
+        "avg_size_tokens": 60.0,
+        "avg_depth_stop": 12.0,
+        "depth_policy_calls": 78.0
+      },
+      {
+        "tokens_generated": 257,
+        "elapsed_time": 2.5170671939849854,
+        "throughput": 102.10295561999726,
+        "num_cycles": 54,
+        "avg_acceptance_len": 4.7592592592592595,
+        "cycles_per_sec": 21.453539313151175,
+        "avg_size_action": 5.0,
+        "avg_size_tokens": 60.0,
+        "avg_depth_stop": 12.0,
+        "depth_policy_calls": 159.0
+      },
+      {
+        "tokens_generated": 260,
+        "elapsed_time": 1.5990068912506104,
+        "throughput": 162.60092525095348,
+        "num_cycles": 34,
+        "avg_acceptance_len": 7.647058823529412,
+        "cycles_per_sec": 21.26319791743238,
+        "avg_size_action": 5.0,
+        "avg_size_tokens": 60.0,
+        "avg_depth_stop": 12.0,
+        "depth_policy_calls": 99.0
+      },
+      {
+        "tokens_generated": 247,
+        "elapsed_time": 1.6066875457763672,
+        "throughput": 153.7324420353599,
+        "num_cycles": 34,
+        "avg_acceptance_len": 7.264705882352941,
+        "cycles_per_sec": 21.161550725515127,
+        "avg_size_action": 5.0,
+        "avg_size_tokens": 60.0,
+        "avg_depth_stop": 12.0,
+        "depth_policy_calls": 99.0
+      },
+      {
+        "tokens_generated": 259,
+        "elapsed_time": 1.3221640586853027,
+        "throughput": 195.89097003403444,
+        "num_cycles": 28,
+        "avg_acceptance_len": 9.25,
+        "cycles_per_sec": 21.177402165841563,
+        "avg_size_action": 5.0,
+        "avg_size_tokens": 60.0,
+        "avg_depth_stop": 12.0,
+        "depth_policy_calls": 81.0
+      },
+      {
+        "tokens_generated": 223,
+        "elapsed_time": 1.224214792251587,
+        "throughput": 182.1575767679268,
+        "num_cycles": 26,
+        "avg_acceptance_len": 8.576923076923077,
+        "cycles_per_sec": 21.2381031209242,
+        "avg_size_action": 5.0,
+        "avg_size_tokens": 60.0,
+        "avg_depth_stop": 12.0,
+        "depth_policy_calls": 75.0
+      },
+      {
+        "tokens_generated": 258,
+        "elapsed_time": 1.5846590995788574,
+        "throughput": 162.81104249397657,
+        "num_cycles": 34,
+        "avg_acceptance_len": 7.588235294117647,
+        "cycles_per_sec": 21.455718778275983,
+        "avg_size_action": 5.0,
+        "avg_size_tokens": 60.0,
+        "avg_depth_stop": 12.0,
+        "depth_policy_calls": 99.0
+      },
+      {
+        "tokens_generated": 260,
+        "elapsed_time": 2.0126473903656006,
+        "throughput": 129.1830855442446,
+        "num_cycles": 43,
+        "avg_acceptance_len": 6.046511627906977,
+        "cycles_per_sec": 21.36489491693276,
+        "avg_size_action": 5.0,
+        "avg_size_tokens": 60.0,
+        "avg_depth_stop": 12.0,
+        "depth_policy_calls": 126.0
+      }
+    ]
+  }
+}
