@@ -1,6 +1,7 @@
 /wandb/
 /checkpoints/ppo_speculative_tensorboard/
 /meta-llama/
+CLAUDE.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

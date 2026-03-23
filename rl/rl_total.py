@@ -291,7 +291,6 @@ class SpeculativeDecodingEnv(gym.Env):
 
     def _perform_random_depth_expansion(self):
         self.random_depth_this_step = random.randint(1, self.max_draft_depth)
-        self.random_depth_this_step=12
         self.entropy_exact=[]
         start_depth_time=time.time()
         for _ in range(self.random_depth_this_step):
