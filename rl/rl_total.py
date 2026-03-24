@@ -83,6 +83,10 @@ parser.add_argument("--use_dyn_depth", action="store_true")
 
 args=parser.parse_args()
 
+_model_name = os.path.basename(args.base_model_path.rstrip("/"))
+_ckpt_dir = os.path.join(args.save_path, _model_name, "size")
+os.makedirs(_ckpt_dir, exist_ok=True)
+
 # Dummy Adawm Schedule for completeness
 def adawm_schedule(initial_lr: float, warmup_steps: int, total_timesteps: int):
     def func(progress_remaining: float) -> float:
@@ -99,7 +103,7 @@ class CustomTensorboardCallback(BaseCallback):
     一个自定义的回调函数，用于在每个步骤中直接向 Weights & Biases (wandb) 记录详细信息。
     同时也保留了按频率保存模型的功能。
     """
-    def __init__(self, verbose=0, save_freq=args.eval_freq, save_path=args.save_path):
+    def __init__(self, verbose=0, save_freq=args.eval_freq, save_path=_ckpt_dir):
         super().__init__(verbose)
         self.save_freq = save_freq
         self.save_path = save_path
@@ -128,7 +132,7 @@ class CustomTensorboardCallback(BaseCallback):
 
         current_timesteps = self.num_timesteps
         if self.save_freq > 0 and current_timesteps - self.last_saved_timestep >= self.save_freq:
-            save_path = os.path.join(self.save_path, f"ppo_speculative_decoder_controller_step_{current_timesteps}")
+            save_path = os.path.join(self.save_path, f"step_{current_timesteps}")
             self.model.save(save_path)
             if self.verbose > 0:
                 print(f"Saving model to {save_path} at timestep {current_timesteps}")
@@ -615,7 +619,7 @@ if __name__ == '__main__':
             checkpoint_path,
             env=env,
             learning_rate=learning_rate_schedule,
-            tensorboard_log=os.path.join(args.save_path, "ppo_speculative_tensorboard"),
+            tensorboard_log=os.path.join(_ckpt_dir, "tensorboard"),
             verbose=1,
             target_kl=args.target_kl,
         )
@@ -629,7 +633,7 @@ if __name__ == '__main__':
             batch_size=args.batch_size, 
             n_epochs=args.n_epochs, 
             gamma=args.gamma, 
-            tensorboard_log=os.path.join(args.save_path, "ppo_speculative_tensorboard"),
+            tensorboard_log=os.path.join(_ckpt_dir, "tensorboard"),
             device=device,
             ent_coef=args.ent_coef, 
             learning_rate=learning_rate_schedule,
@@ -650,6 +654,6 @@ if __name__ == '__main__':
     )
     print("RL training finished.")
     run.finish()
-    model_rl.save(os.path.join(args.save_path, "ppo_speculative_decoder_controller_rebuttal"))
+    model_rl.save(os.path.join(_ckpt_dir, "final"))
     print("Model saved.")
     env.close()

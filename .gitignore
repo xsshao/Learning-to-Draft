@@ -2,6 +2,8 @@
 /checkpoints/ppo_speculative_tensorboard/
 /meta-llama/
 CLAUDE.md
+*000.zip
+tensorboard/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

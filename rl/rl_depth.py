@@ -79,6 +79,10 @@ parser.add_argument('--pi_arch', type=int, nargs='+', default=[512, 256], help="
 parser.add_argument('--vf_arch', type=int, nargs='+', default=[1024, 512], help="Value network (vf) architecture. Example: --vf_arch 1024 512")
 args=parser.parse_args()
 
+_model_name = os.path.basename(args.base_model_path.rstrip("/"))
+_ckpt_dir = os.path.join(args.save_path, _model_name, "depth")
+os.makedirs(_ckpt_dir, exist_ok=True)
+
 def adawm_schedule(initial_lr: float, warmup_steps: int, total_timesteps: int):
     def func(progress_remaining: float) -> float:
         current_timesteps = total_timesteps * (1 - progress_remaining)
@@ -90,7 +94,7 @@ def adawm_schedule(initial_lr: float, warmup_steps: int, total_timesteps: int):
     return func
 
 class CustomTensorboardCallback(BaseCallback):
-    def __init__(self, verbose=0, save_freq=args.eval_freq, save_path=args.save_path):
+    def __init__(self, verbose=0, save_freq=args.eval_freq, save_path=_ckpt_dir):
         super().__init__(verbose)
         self.save_freq = save_freq
         self.save_path = save_path
@@ -120,7 +124,7 @@ class CustomTensorboardCallback(BaseCallback):
                     wandb.log(log_data, step=self.num_timesteps)
         current_timesteps = self.num_timesteps
         if self.save_freq > 0 and current_timesteps - self.last_saved_timestep >= self.save_freq:
-            save_path = os.path.join(self.save_path, f"ppo_speculative_decoder_controller_step_{current_timesteps}")
+            save_path = os.path.join(self.save_path, f"step_{current_timesteps}")
             self.model.save(save_path)
             if self.verbose > 0:
                 print(f"Saving model to {save_path} at timestep {current_timesteps}")
@@ -677,7 +681,7 @@ if __name__ == '__main__':
             checkpoint_path,
             env=env,
             learning_rate=learning_rate_schedule, 
-            tensorboard_log=os.path.join(args.save_path,"ppo_speculative_tensorboard"),
+            tensorboard_log=os.path.join(_ckpt_dir, "tensorboard"),
             verbose=1,
         )
     else:
@@ -690,7 +694,7 @@ if __name__ == '__main__':
             batch_size=args.batch_size, 
             n_epochs=args.n_epochs, 
             gamma=args.gamma, 
-            tensorboard_log=os.path.join(args.save_path,"ppo_speculative_tensorboard"),
+            tensorboard_log=os.path.join(_ckpt_dir, "tensorboard"),
             device=device,
             ent_coef=args.ent_coef, 
             learning_rate=learning_rate_schedule,
@@ -710,6 +714,6 @@ if __name__ == '__main__':
     )
     print("RL training finished.")
     run.finish()
-    model_rl.save(os.path.join(args.save_path,"ppo_speculative_decoder_controller_v1_single_action"))
+    model_rl.save(os.path.join(_ckpt_dir, "final"))
     print("Model saved.")
     env.close()
