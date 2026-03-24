@@ -488,6 +488,10 @@ class Model(nn.Module):
         if load_emb and not hasattr(config, "target_hidden_size"):
             from safetensors import safe_open
             import json
+            # Resolve HuggingFace model ID to local cache path if needed
+            if path is not None and not os.path.isdir(path):
+                from huggingface_hub import snapshot_download
+                path = snapshot_download(path, local_files_only=True)
             try:
                 with open(os.path.join(path, "model.safetensors.index.json"), "r") as f:
                     index_json = json.loads(f.read())

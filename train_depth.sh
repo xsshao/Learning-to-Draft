@@ -11,11 +11,14 @@ data_dir="./eagle/data"
 dataset_train="humaneval"
 save_path="./checkpoints"
 
-# RL Hyperparameters
-total_timesteps=100000
-batch_size=64
-n_steps=128
-lr=3e-4
+# RL Hyperparameters (paper Appendix A.3)
+total_timesteps=1000000
+n_steps=2048        # rollout buffer size
+batch_size=256      # minibatch size
+n_epochs=20         # PPO epochs per update
+lr=1e-3
+ent_coef=0.01
+gamma=0.999         # high discount factor to discourage premature termination
 
 python3 -m rl.rl_depth \
     --base_model_path ${base_model_path} \
@@ -26,8 +29,11 @@ python3 -m rl.rl_depth \
     --dataset_train ${dataset_train} \
     --save_path ${save_path} \
     --total_timesteps ${total_timesteps} \
-    --batch_size ${batch_size} \
     --n_steps ${n_steps} \
+    --batch_size ${batch_size} \
+    --n_epochs ${n_epochs} \
     --lr ${lr} \
+    --ent_coef ${ent_coef} \
+    --gamma ${gamma} \
     --pi_arch 1024 \
     --vf_arch 1024 256
