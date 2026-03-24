@@ -243,7 +243,7 @@ def plot_results(results: dict, save_path: str | None = None):
         lines = [b1, b2]
         labels = ["Avg Draft Tokens", "Avg Depth Stop"]
         ax.grid(axis="y", linewidth=0.5, alpha=0.5)
-        ax.legend(lines, labels, fontsize=8)
+        ax2.legend(lines, labels, fontsize=8)
 
     fig.tight_layout()
 
