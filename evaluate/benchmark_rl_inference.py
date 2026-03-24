@@ -11,7 +11,7 @@ python evaluate/benchmark_rl_inference.py \
     --data_dir ./eagle/data \
     --dataset_names humaneval alpaca \
     --num_samples 100 \
-    --batch_size 1 \
+    --batch_size 64 \
     --temperature 0.0
 """
 
@@ -24,7 +24,6 @@ from typing import Dict, List, Tuple, Any
 from datetime import datetime
 
 import numpy as np
-import pandas as pd
 import torch
 from stable_baselines3 import PPO
 from tqdm.rich import tqdm
@@ -705,7 +704,20 @@ def main():
     print("🔬 Starting benchmark...")
     print("=" * 80)
 
-    all_results = {}
+    all_results = {
+        "config": {
+            "base_model_path": args.base_model_path,
+            "ea_model_path": args.ea_model_path,
+            "size_model_path": args.size_model_path,
+            "depth_model_path": args.depth_model_path,
+            "dataset_names": args.dataset_names,
+            "num_samples": args.num_samples,
+            "temperature": args.temperature,
+            "batch_size": args.batch_size,
+            "device": args.device,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+    }
 
     for dataset_name in args.dataset_names:
         print(f"\n📊 Dataset: {dataset_name}")
@@ -748,38 +760,6 @@ def main():
                 except Exception as e:
                     print(f"    ❌ Eagle3+RL error on sample {i}: {e}")
 
-        print(f"\n  Results for {dataset_name}:")
-        print("  " + "-" * 76)
-
-        for method_name, results in dataset_results.items():
-            if not results:
-                print(f"    {method_name:20s}: No results")
-                continue
-
-            results_df = pd.DataFrame(results)
-            if method_name == "baseline":
-                avg_tokens = results_df["tokens"].mean()
-                avg_time = results_df["time"].mean()
-                avg_throughput = results_df["throughput"].mean()
-                print(
-                    f"    {method_name:20s}: Tokens {avg_tokens:6.1f}, Time {avg_time:7.3f}s, "
-                    f"Throughput {avg_throughput:6.2f} tok/s"
-                )
-            else:
-                avg_tokens = results_df["tokens_generated"].mean()
-                avg_time = results_df["elapsed_time"].mean()
-                avg_throughput = results_df["throughput"].mean()
-                avg_acceptance = results_df["avg_acceptance_len"].mean()
-                extra = ""
-                if method_name == "eagle3_rl" and "avg_size_tokens" in results_df.columns:
-                    avg_size_tokens = results_df["avg_size_tokens"].mean()
-                    avg_depth_stop = results_df["avg_depth_stop"].mean()
-                    extra = f", SizeTok {avg_size_tokens:5.1f}, DepthStop {avg_depth_stop:4.2f}"
-                print(
-                    f"    {method_name:20s}: Tokens {avg_tokens:6.1f}, Time {avg_time:7.3f}s, "
-                    f"Throughput {avg_throughput:6.2f} tok/s, Acceptance {avg_acceptance:5.2f}{extra}"
-                )
-
         all_results[dataset_name] = dataset_results
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -788,7 +768,9 @@ def main():
         json.dump(to_jsonable(all_results), f, indent=2)
 
     print(f"\n✅ Results saved to {output_file}")
-    print("=" * 80)
+
+    from evaluate.analyze_results import print_results
+    print_results(all_results)
 
 
 if __name__ == "__main__":
