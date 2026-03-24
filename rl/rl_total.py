@@ -292,6 +292,7 @@ class SpeculativeDecodingEnv(gym.Env):
     def _perform_random_depth_expansion(self):
         self.random_depth_this_step = random.randint(1, self.max_draft_depth)
         self.entropy_exact=[]
+        self.random_depth_this_step=12
         start_depth_time=time.time()
         for _ in range(self.random_depth_this_step):
             self.model.ea_layer.tree_mask = self.current_tree_mask_for_topk_loop

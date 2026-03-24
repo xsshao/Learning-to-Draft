@@ -518,13 +518,13 @@ def baseline_decoding(model, input_ids: torch.Tensor, max_new_tokens: int = 256,
     naivegenerate evaluation path.
     Returns: (num_generated_tokens, elapsed_time_in_seconds)
     """
-    del max_new_tokens
     start_time = time.time()
     is_llama3 = 128009 in _get_stop_token_ids(model)
     with torch.no_grad():
         _, new_token, _ = model.naivegenerate(
             input_ids.clone(),
             temperature=temperature,
+            max_new_tokens=max_new_tokens,
             log=True,
             is_llama3=is_llama3,
         )
@@ -540,7 +540,7 @@ def eagle3_decoding(model, input_ids: torch.Tensor,
     Eagle3 tree-based speculative decoding with static config, using the repo's
     official eagenerate path so benchmark behavior matches the paper more closely.
     """
-    del logits_processor, max_new_tokens
+    del logits_processor
     start_time = time.time()
     is_llama3 = 128009 in _get_stop_token_ids(model)
 
@@ -554,6 +554,7 @@ def eagle3_decoding(model, input_ids: torch.Tensor,
             _, new_token, _, _, accept_lengths = model.eagenerate(
                 input_ids.clone(),
                 temperature=temperature,
+                max_new_tokens=max_new_tokens,
                 log=True,
                 is_llama3=is_llama3,
                 pre_len=True,
