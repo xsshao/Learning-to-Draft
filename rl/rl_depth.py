@@ -640,6 +640,18 @@ if __name__ == '__main__':
     model.eval()
     tokenizer = model.get_tokenizer()
 
+    # Vicuna and similar older models do not have chat_template set in their tokenizer.
+    # Manually set the Vicuna v1 conversation format so apply_chat_template works.
+    if tokenizer.chat_template is None:
+        tokenizer.chat_template = (
+            "{% for message in messages %}"
+            "{% if message['role'] == 'system' %}{{ message['content'] + '\n\n' }}"
+            "{% elif message['role'] == 'user' %}{{ 'USER: ' + message['content'] + '\n' }}"
+            "{% elif message['role'] == 'assistant' %}{{ 'ASSISTANT: ' + message['content'] + '</s>\n' }}"
+            "{% endif %}{% endfor %}"
+            "{% if add_generation_prompt %}{{ 'ASSISTANT:' }}{% endif %}"
+        )
+
     # Load dataset
     input_ids_list = []
     datasets=[]
