@@ -1,0 +1,50 @@
+{
+  "config": {
+    "base_model_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "ea_model_path": "yuhuili/EAGLE3-LLaMA3.1-Instruct-8B",
+    "size_model_path": "checkpoints/Llama-3.1-8B-Instruct/size/final.zip",
+    "depth_model_path": "checkpoints/Llama-3.1-8B-Instruct/depth/final.zip",
+    "dataset_names": [
+      "qa"
+    ],
+    "num_samples": 1,
+    "temperature": 0.0,
+    "batch_size": 256,
+    "device": "cuda",
+    "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "timestamp": "2026-03-29 05:04:48"
+  },
+  "qa": {
+    "baseline": [
+      {
+        "tokens": 29,
+        "time": 1.6002204418182373,
+        "throughput": 18.122503151533916
+      }
+    ],
+    "eagle3": [
+      {
+        "tokens_generated": 29,
+        "elapsed_time": 0.6633307933807373,
+        "throughput": 43.7187614440918,
+        "num_cycles": 7,
+        "avg_acceptance_len": 4.142857142857143,
+        "cycles_per_sec": 10.552804226566568
+      }
+    ],
+    "eagle3_rl": [
+      {
+        "tokens_generated": 29,
+        "elapsed_time": 0.3955514430999756,
+        "throughput": 73.31536897634388,
+        "num_cycles": 6,
+        "avg_acceptance_len": 4.833333333333333,
+        "cycles_per_sec": 15.168697029588389,
+        "avg_size_action": 4.0,
+        "avg_size_tokens": 50.0,
+        "avg_depth_stop": 5.4,
+        "depth_policy_calls": 9.0
+      }
+    ]
+  }
+}

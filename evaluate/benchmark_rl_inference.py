@@ -641,12 +641,12 @@ def main():
     parser.add_argument("--depth_model_path", type=str, default="",
                         help="Path to depth RL model (.zip)")
     parser.add_argument("--data_dir", type=str, default="./eagle/data")
-    parser.add_argument("--dataset_names", nargs="+", default=["humaneval"],
+    parser.add_argument("--dataset_names", nargs="+", default=[],
                         help="Dataset names to evaluate on")
-    parser.add_argument("--num_samples", type=int, default=20,
+    parser.add_argument("--num_samples", type=int, default=1000,
                         help="Number of samples per dataset")
     parser.add_argument("--temperature", type=float, default=0.0)
-    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--output_dir", type=str, default="./evaluate/results")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
 
@@ -661,7 +661,10 @@ def main():
     print("\n📦 Loading models...")
     print(f"  Base model: {args.base_model_path}")
     print(f"  EA model: {args.ea_model_path}")
-    print("Device:", args.device)
+    print(f"  Device: {args.device}")
+
+    gpu_name = torch.cuda.get_device_name(args.device) if torch.cuda.is_available() else "N/A"
+    print(f"  GPU: {gpu_name}")
 
     model = EaModel.from_pretrained(
         base_model_path=args.base_model_path,
@@ -692,6 +695,21 @@ def main():
 
     size_policy = None
     depth_policy = None
+
+    model_name = args.base_model_path.split("/")[-1]
+
+    from pprint import pprint
+    if args.size_model_path == "":
+        args.size_model_path = f"checkpoints/{model_name}/size/final.zip"
+        print(f"  ℹ️ No size model path provided, defaulting to {args.size_model_path}")
+    if args.depth_model_path == "":
+        args.depth_model_path = f"checkpoints/{model_name}/depth/final.zip"
+        print(f"  ℹ️ No depth model path provided, defaulting to {args.depth_model_path}")
+    if args.dataset_names == []:
+        # list all subdirectories in data_dir as dataset names
+        args.dataset_names = [d for d in os.listdir(args.data_dir) if os.path.isdir(os.path.join(args.data_dir, d))]
+        print(f"  ℹ️ No dataset names provided, defaulting to all datasets:")
+        pprint(args.dataset_names)
 
     if args.size_model_path and os.path.exists(args.size_model_path):
         print(f"  Loading size policy: {args.size_model_path}")
@@ -727,9 +745,11 @@ def main():
             "temperature": args.temperature,
             "batch_size": args.batch_size,
             "device": args.device,
+            "gpu_name": gpu_name,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
     }
+    pprint(all_results["config"])
 
     for dataset_name in args.dataset_names:
         print(f"\n📊 Dataset: {dataset_name}")
