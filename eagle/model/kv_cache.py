@@ -44,6 +44,7 @@ class KVCache:
             prev_length (int): Previous length before adding new data.
             dim (int, optional): Dimension along which copying should be performed. Default is 2.
         """
+        indices = indices.to(device=self.data.device, dtype=torch.long)
         tgt = self.data.index_select(dim, indices)
         dst = self.data.narrow(dim, prev_length, tgt.shape[dim])
         dst.copy_(tgt, non_blocking=True)
@@ -60,6 +61,7 @@ class KVCache:
         Returns:
             torch.Tensor: The data tensor after concatenation up to the current length.
         """
+        tensor = tensor.to(self.data.device, non_blocking=True)
         dst = self.data.narrow(dim, self.current_length, tensor.shape[dim])
         dst.copy_(tensor)
         self.current_length.add_(tensor.shape[dim])
@@ -89,6 +91,7 @@ def initialize_past_key_values(model,max_length=2200):
     # Initializing a tensor to store past keys and values for all layers
 
     devices=[]
+    head_dim = getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)
     for i in range(config.num_hidden_layers):
         try:
             device = model.model.layers[i].self_attn.q_proj.weight.device
@@ -105,7 +108,7 @@ def initialize_past_key_values(model,max_length=2200):
                 batch_size,
                 config.num_key_value_heads,
                 max_length,
-                config.hidden_size // config.num_attention_heads,
+                head_dim,
                 device=startdevice,
                 dtype=model.dtype,
             )
@@ -118,7 +121,7 @@ def initialize_past_key_values(model,max_length=2200):
         batch_size,
         config.num_key_value_heads,
         max_length,
-        config.hidden_size // config.num_attention_heads,
+        head_dim,
         device=startdevice,
         dtype=model.dtype,
     )

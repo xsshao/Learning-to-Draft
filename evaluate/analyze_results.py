@@ -6,8 +6,10 @@ Usage: python evaluate/analyze_results.py --results_file ./evaluate/results/benc
 
 import argparse
 import json
-import pandas as pd
 from pathlib import Path
+from typing import Optional
+
+import pandas as pd
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -68,6 +70,10 @@ def print_results(results: dict):
         print(f"  Batch size:    {config.get('batch_size', '—')}")
         print(f"  Temperature:   {config.get('temperature', '—')}")
         print(f"  Device:        {config.get('device', '—')}")
+        if config.get("quantization"):
+            print(f"  Quantization:  {config['quantization']}")
+        elif "load_in_8bit" in config:
+            print(f"  Quantization:  {'int8' if config.get('load_in_8bit') else 'fp16'}")
         if config.get("timestamp"):
             print(f"  Timestamp:     {config['timestamp']}")
 
@@ -104,7 +110,7 @@ def print_results(results: dict):
     print("Analysis complete!")
 
 
-def plot_results(results: dict, save_path: str | None = None):
+def plot_results(results: dict, save_path: Optional[str] = None):
     """
     Generate benchmark comparison charts.
 
@@ -255,7 +261,7 @@ def plot_results(results: dict, save_path: str | None = None):
     plt.close(fig)
 
 
-def analyze_results(results_file: str, plot: bool = False, plot_dir: str | None = None):
+def analyze_results(results_file: str, plot: bool = False, plot_dir: Optional[str] = None):
     """Load and analyze benchmark results from a JSON file."""
 
     with open(results_file, 'r') as f:

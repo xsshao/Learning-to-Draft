@@ -1,0 +1,150 @@
+Requirement already satisfied: pip in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (26.0.1)
+Requirement already satisfied: setuptools in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (82.0.1)
+Requirement already satisfied: wheel in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (0.47.0)
+Requirement already satisfied: packaging>=24.0 in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (from wheel) (26.0)
+missing_modules=
+Qwen3-32B benchmark configuration:
+  Base model:   Qwen/Qwen3-32B
+  EA model:     AngelSlim/Qwen3-32B_eagle3
+  Size model:   /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Depth model:  /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Datasets:     leetcode
+  Num samples:  20
+  Temperature:  0.0
+  Results dir:  /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu/leetcode
+  Quantization: int8
+  Device map:   auto
+  Warmup runs:  3
+  Array task:   5/11
+==================================
+🚀 RL-Enhanced Inference Benchmark
+==================================
+Base Model:        Qwen/Qwen3-32B
+EA Model:          AngelSlim/Qwen3-32B_eagle3
+Size Model:        /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+Depth Model:       /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+Datasets:          leetcode
+Samples per DS:    20
+Output Directory:  /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu/leetcode
+Quantization:      int8
+8-bit Alias Used:  0
+Device Map:        auto
+Warmup runs:       3
+==================================
+
+Starting benchmark...
+python /u/sx24/scratch/LTD_reproduce/evaluate/benchmark_rl_inference.py --base_model_path Qwen/Qwen3-32B --ea_model_path AngelSlim/Qwen3-32B_eagle3 --data_dir /u/sx24/scratch/LTD_reproduce/eagle/data --dataset_names leetcode --num_samples 20 --temperature 0.0 --output_dir /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu/leetcode --device cuda --quantization int8 --size_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip --depth_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip --device_map auto --warmup_runs 3 
+================================================================================
+🚀 RL-Enhanced Speculative Decoding Benchmark
+================================================================================
+
+📦 Loading models...
+  Base model: Qwen/Qwen3-32B
+  EA model: AngelSlim/Qwen3-32B_eagle3
+  Device: cuda
+  GPU: NVIDIA H100 80GB HBM3
+  CUDA_VISIBLE_DEVICES: '0,1'  |  torch.cuda.device_count(): 2
+  Quantization: int8
+  Effective device_map: auto
+  Loading size policy: /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Loading depth policy: /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Input device (embeddings / first stage): cuda:0
+
+================================================================================
+🔬 Starting benchmark...
+================================================================================
+{'base_model_path': 'Qwen/Qwen3-32B',
+ 'batch_size': 256,
+ 'bnb_4bit_compute_dtype': '',
+ 'bnb_4bit_quant_type': '',
+ 'bnb_4bit_use_double_quant': False,
+ 'cuda_visible_devices': '0,1',
+ 'dataset_names': ['leetcode'],
+ 'depth_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip',
+ 'device': 'cuda',
+ 'device_map': 'auto',
+ 'ea_model_path': 'AngelSlim/Qwen3-32B_eagle3',
+ 'gpu_name': 'NVIDIA H100 80GB HBM3',
+ 'input_device': 'cuda:0',
+ 'load_in_4bit': False,
+ 'load_in_8bit': True,
+ 'num_samples': 20,
+ 'parallelism_note': 'HuggingFace accelerate device_map shards layers across '
+                     'GPUs (pipeline-style). This is not Megatron/vLLM tensor '
+                     'parallelism (no all-reduce matmul split).',
+ 'quantization': 'int8',
+ 'size_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip',
+ 'temperature': 0.0,
+ 'timestamp': '2026-04-28 06:41:53',
+ 'torch_cuda_device_count': 2,
+ 'torch_dtype': 'float16',
+ 'warmup_runs': 3}
+
+📊 Dataset: leetcode
+--------------------------------------------------------------------------------
+✓ Loaded 20 samples from leetcode
+
+  Warmup (3 full passes on first prompt, untimed)...
+Evaluating leetcode 100% ━━━━━━━━━━━━━━━━━ 20/20  [ 0:27:19 < 0:00:00 , ? it/s ]
+
+✅ Results saved to /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu/leetcode/benchmark_results_20260428_071311.json
+==============================================================================================================
+BENCHMARK RESULTS ANALYSIS
+==============================================================================================================
+
+Run Configuration:
+  Base model:    Qwen/Qwen3-32B
+  EA model:      AngelSlim/Qwen3-32B_eagle3
+  Size policy:   /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Depth policy:  /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Datasets:      leetcode
+  Num samples:   20
+  Batch size:    256
+  Temperature:   0.0
+  Device:        cuda
+  Quantization:  int8
+  Timestamp:     2026-04-28 06:41:53
+
+                                              Dataset: leetcode                                               
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      49.1951      5.22           —            —          —            —
+eagle3               258.6      16.8768      15.45          3.65         —          —            2.96x
+eagle3_rl            257.9      15.8781      16.34          3.91         150.0      4.88         3.13x
+
+==============================================================================================================
+Analysis complete!
+
+✅ Benchmark complete!
+Results saved to: /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu/leetcode
+Analyzing /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu/leetcode/benchmark_results_20260428_071311.json
+Loaded benchmark results from: /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu/leetcode/benchmark_results_20260428_071311.json
+==============================================================================================================
+BENCHMARK RESULTS ANALYSIS
+==============================================================================================================
+
+Run Configuration:
+  Base model:    Qwen/Qwen3-32B
+  EA model:      AngelSlim/Qwen3-32B_eagle3
+  Size policy:   /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Depth policy:  /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Datasets:      leetcode
+  Num samples:   20
+  Batch size:    256
+  Temperature:   0.0
+  Device:        cuda
+  Quantization:  int8
+  Timestamp:     2026-04-28 06:41:53
+
+                                              Dataset: leetcode                                               
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      49.1951      5.22           —            —          —            —
+eagle3               258.6      16.8768      15.45          3.65         —          —            2.96x
+eagle3_rl            257.9      15.8781      16.34          3.91         150.0      4.88         3.13x
+
+==============================================================================================================
+Analysis complete!
+Chart saved to /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu/leetcode/benchmark_results_20260428_071311_charts.png

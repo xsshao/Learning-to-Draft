@@ -1,0 +1,126 @@
+Requirement already satisfied: pip in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (26.0.1)
+Requirement already satisfied: setuptools in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (82.0.1)
+Requirement already satisfied: wheel in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (0.46.3)
+Requirement already satisfied: packaging>=24.0 in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (from wheel) (26.0)
+missing_modules=
+Qwen3-32B benchmark configuration:
+  Base model:   Qwen/Qwen3-32B
+  EA model:     AngelSlim/Qwen3-32B_eagle3
+  Size model:   /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Depth model:  /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Datasets:     gsm8k
+  Num samples:  20
+  Temperature:  0.0
+  Results dir:  /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/gsm8k
+  8-bit load:   1
+  Device map:   auto
+  Array task:   3/11
+==================================
+🚀 RL-Enhanced Inference Benchmark
+==================================
+Base Model:        Qwen/Qwen3-32B
+EA Model:          AngelSlim/Qwen3-32B_eagle3
+Size Model:        /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+Depth Model:       /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+Datasets:          gsm8k
+Samples per DS:    20
+Output Directory:  /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/gsm8k
+8-bit Loading:     1
+Device Map:        auto
+==================================
+
+Starting benchmark...
+python /u/sx24/scratch/LTD_reproduce/evaluate/benchmark_rl_inference.py --base_model_path Qwen/Qwen3-32B --ea_model_path AngelSlim/Qwen3-32B_eagle3 --data_dir /u/sx24/scratch/LTD_reproduce/eagle/data --dataset_names gsm8k --num_samples 20 --temperature 0.0 --output_dir /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/gsm8k --device cuda --size_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip --depth_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip --load_in_8bit --device_map auto 
+================================================================================
+🚀 RL-Enhanced Speculative Decoding Benchmark
+================================================================================
+
+📦 Loading models...
+  Base model: Qwen/Qwen3-32B
+  EA model: AngelSlim/Qwen3-32B_eagle3
+  Device: cuda
+  GPU: NVIDIA H100 80GB HBM3
+  Loading size policy: /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Loading depth policy: /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+
+================================================================================
+🔬 Starting benchmark...
+================================================================================
+{'base_model_path': 'Qwen/Qwen3-32B',
+ 'batch_size': 256,
+ 'dataset_names': ['gsm8k'],
+ 'depth_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip',
+ 'device': 'cuda',
+ 'device_map': 'auto',
+ 'ea_model_path': 'AngelSlim/Qwen3-32B_eagle3',
+ 'gpu_name': 'NVIDIA H100 80GB HBM3',
+ 'load_in_8bit': True,
+ 'num_samples': 20,
+ 'size_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip',
+ 'temperature': 0.0,
+ 'timestamp': '2026-04-06 17:27:55'}
+
+📊 Dataset: gsm8k
+--------------------------------------------------------------------------------
+✓ Loaded 20 samples from gsm8k
+Evaluating gsm8k 100% ━━━━━━━━━━━━━━━━━━━━ 20/20  [ 0:24:54 < 0:00:00 , ? it/s ]
+
+✅ Results saved to /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/gsm8k/benchmark_results_20260406_175249.json
+==============================================================================================================
+BENCHMARK RESULTS ANALYSIS
+==============================================================================================================
+
+Run Configuration:
+  Base model:    Qwen/Qwen3-32B
+  EA model:      AngelSlim/Qwen3-32B_eagle3
+  Size policy:   /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Depth policy:  /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Datasets:      gsm8k
+  Num samples:   20
+  Batch size:    256
+  Temperature:   0.0
+  Device:        cuda
+  Timestamp:     2026-04-06 17:27:55
+
+                                                Dataset: gsm8k                                                
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      46.6135      5.51           —            —          —            —
+eagle3               259.1      14.3829      18.15          4.11         —          —            3.29x
+eagle3_rl            258.1      13.7355      18.99          4.36         150.0      5.41         3.44x
+
+==============================================================================================================
+Analysis complete!
+
+✅ Benchmark complete!
+Results saved to: /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/gsm8k
+Analyzing /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/gsm8k/benchmark_results_20260406_175249.json
+Loaded benchmark results from: /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/gsm8k/benchmark_results_20260406_175249.json
+==============================================================================================================
+BENCHMARK RESULTS ANALYSIS
+==============================================================================================================
+
+Run Configuration:
+  Base model:    Qwen/Qwen3-32B
+  EA model:      AngelSlim/Qwen3-32B_eagle3
+  Size policy:   /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Depth policy:  /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Datasets:      gsm8k
+  Num samples:   20
+  Batch size:    256
+  Temperature:   0.0
+  Device:        cuda
+  Timestamp:     2026-04-06 17:27:55
+
+                                                Dataset: gsm8k                                                
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      46.6135      5.51           —            —          —            —
+eagle3               259.1      14.3829      18.15          4.11         —          —            3.29x
+eagle3_rl            258.1      13.7355      18.99          4.36         150.0      5.41         3.44x
+
+==============================================================================================================
+Analysis complete!
+Chart saved to /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/gsm8k/benchmark_results_20260406_175249_charts.png

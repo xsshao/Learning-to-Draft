@@ -1,0 +1,44 @@
+Requirement already satisfied: pip in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (26.0.1)
+Requirement already satisfied: setuptools in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (82.0.1)
+Requirement already satisfied: wheel in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (0.46.3)
+Collecting wheel
+  Downloading wheel-0.47.0-py3-none-any.whl.metadata (2.3 kB)
+Requirement already satisfied: packaging>=24.0 in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (from wheel) (26.0)
+Downloading wheel-0.47.0-py3-none-any.whl (32 kB)
+Installing collected packages: wheel
+  Attempting uninstall: wheel
+    Found existing installation: wheel 0.46.3
+    Uninstalling wheel-0.46.3:
+      Successfully uninstalled wheel-0.46.3
+Successfully installed wheel-0.47.0
+missing_modules=
+SLURM array task 1: running dataset 'humaneval'
+Grid sweep configuration:
+  Base model:   meta-llama/Llama-3.1-8B-Instruct
+  EA model:     yuhuili/EAGLE3-LLaMA3.1-Instruct-8B
+  Datasets:     humaneval alpaca gsm8k mt_bench
+  Num samples:  50
+  Temperature:  0.0
+  Depths:       3 5 8 12
+  Sizes:        20 40 60 100 150 200
+  Results dir:  /u/sx24/scratch/LTD_reproduce/evaluate/results/grid_sweep/Llama-3.1-8B-Instruct/humaneval
+  8-bit load:   1
+  Device map:   auto
+
+Command:
+python /u/sx24/scratch/LTD_reproduce/evaluate/benchmark_grid_sweep.py --base_model_path meta-llama/Llama-3.1-8B-Instruct --ea_model_path yuhuili/EAGLE3-LLaMA3.1-Instruct-8B --data_dir /u/sx24/scratch/LTD_reproduce/eagle/data --dataset_names humaneval alpaca gsm8k mt_bench --dataset_index 0 --num_samples 50 --temperature 0.0 --depths 3 5 8 12 --sizes 20 40 60 100 150 200 --output_dir /u/sx24/scratch/LTD_reproduce/evaluate/results/grid_sweep/Llama-3.1-8B-Instruct/humaneval --device cuda --load_in_8bit --device_map auto 
+================================================================================
+Grid Sweep Benchmark: Eagle3 static (depth x size)
+================================================================================
+  Base model:  meta-llama/Llama-3.1-8B-Instruct
+  EA model:    yuhuili/EAGLE3-LLaMA3.1-Instruct-8B
+  Depths:      [3, 5, 8, 12]
+  Sizes:       [20, 40, 60, 100, 150, 200]
+  Grid points: 24
+  Datasets:    ['humaneval']
+  Samples:     50
+  Temperature: 0.0
+  GPU:         NVIDIA H100 80GB HBM3
+================================================================================
+
+Loading model...

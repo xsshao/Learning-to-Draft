@@ -1,0 +1,1005 @@
+"""
+Benchmark script for comparing baseline, Eagle3, and Eagle3+RL inference performance.
+Loads pre-trained RL models and evaluates throughput, acceptance length, and latency.
+
+使用方法:
+python evaluate/benchmark_rl_inference.py \
+    --base_model_path meta-llama/Llama-3.1-8B-Instruct \
+    --ea_model_path yuhuili/EAGLE3-LLaMA3.1-Instruct-8B \
+    --size_model_path ./checkpoints/ppo_speculative_decoder_controller_rebuttal.zip \
+    --depth_model_path ./checkpoints/ppo_speculative_decoder_controller_v1_single_action.zip \
+    --data_dir ./eagle/data \
+    --dataset_names humaneval alpaca \
+    --num_samples 100 \
+    --batch_size 64 \
+    --temperature 0.0
+"""
+
+import sys
+import os
+import argparse
+import json
+import time
+from typing import Dict, List, Tuple, Any, Optional
+from datetime import datetime
+
+import numpy as np
+import torch
+from stable_baselines3 import PPO
+from tqdm.rich import tqdm
+from fastchat.model import get_conversation_template
+
+OFFICIAL_SYSTEM_PROMPT = (
+    "You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  "
+    "Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. "
+    "Please ensure that your responses are socially unbiased and positive in nature.\n\n"
+    "If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. "
+    "If you don't know the answer to a question, please don't share false information."
+)
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from rl.hardware_reward import (
+    COEFF_KEYS,
+    hardware_profile_vector,
+    infer_policy_obs_size,
+    resolve_hardware_profile,
+)
+
+try:
+    from eagle.model.ea_model import EaModel
+    from eagle.model.quantization import (
+        add_quantization_args,
+        apply_quantization_config,
+        quantization_metadata,
+        should_move_model_to_device,
+    )
+    from eagle.model.kv_cache import initialize_past_key_values
+    from eagle.model.utils import (
+        initialize_tree,
+        tree_decoding,
+        evaluate_posterior,
+        reset_past_key_values,
+        reset_tree_mode,
+        prepare_logits_processor,
+    )
+except ImportError:
+    print("⚠️  Note: Eagle models not fully available; some features may be limited.")
+
+
+def _suffix_device(model) -> torch.device:
+    """Last transformer layer device: EAGLE-3 ea_layer and tree verification tensors live here."""
+    base = model.base_model
+    try:
+        return base.model.layers[-1].self_attn.q_proj.weight.device
+    except Exception:
+        return next(model.parameters()).device
+
+
+def _input_device(model) -> torch.device:
+    """Device for input_ids: first pipeline stage for HuggingFace device_map / multi-GPU."""
+    try:
+        if hasattr(model, "base_model"):
+            base = model.base_model
+            if hasattr(base, "get_input_embeddings"):
+                return base.get_input_embeddings().weight.device
+            return base.model.embed_tokens.weight.device
+        if hasattr(model, "get_input_embeddings"):
+            return model.get_input_embeddings().weight.device
+    except Exception:
+        pass
+    try:
+        return next(model.parameters()).device
+    except StopIteration:
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def _as_int(x) -> int:
+    """Coerce eagenerate / naivegenerate token counts to Python int (may be 0-dim tensors)."""
+    if torch.is_tensor(x):
+        return int(x.detach().cpu().item())
+    return int(x)
+
+
+def to_jsonable(obj: Any):
+    if isinstance(obj, dict):
+        return {k: to_jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [to_jsonable(v) for v in obj]
+    if isinstance(obj, tuple):
+        return [to_jsonable(v) for v in obj]
+    if isinstance(obj, torch.Tensor):
+        if obj.numel() == 1:
+            return obj.detach().cpu().item()
+        return obj.detach().cpu().tolist()
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    return obj
+
+
+def load_and_sample_data(data_dir: str, dataset_name: str, num_samples: int,
+                         tokenizer, max_seq_len: int = 1748) -> List[Dict]:
+    """Load and sample from dataset."""
+    dataset_path = os.path.join(data_dir, dataset_name, "question.jsonl")
+
+    if not os.path.exists(dataset_path):
+        print(f"⚠️  Dataset {dataset_path} not found.")
+        return []
+
+    samples = []
+    with open(dataset_path, "r") as f:
+        for i, line in enumerate(f):
+            if i >= num_samples:
+                break
+            data = json.loads(line)
+            prompt = build_prompt(
+                tokenizer,
+                data["turns"][0],
+                getattr(tokenizer, "name_or_path", ""),
+            )
+            input_ids = tokenizer.encode(prompt, add_special_tokens=False, return_tensors="pt")
+
+            if input_ids.shape[1] <= max_seq_len:
+                samples.append({
+                    "prompt": prompt,
+                    "input_ids": input_ids,
+                    "original_question": data["turns"][0]
+                })
+
+    print(f"✓ Loaded {len(samples)} samples from {dataset_name}")
+    return samples
+
+
+def build_prompt(tokenizer, user_prompt: str, model_name_or_path: str) -> str:
+    messages = [
+        {"role": "system", "content": OFFICIAL_SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt},
+    ]
+    try:
+        return tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+    except Exception:
+        pass
+
+    if "vicuna" in model_name_or_path.lower():
+        conv = get_conversation_template("vicuna")
+        if hasattr(conv, "set_system_message"):
+            conv.set_system_message(OFFICIAL_SYSTEM_PROMPT)
+        elif hasattr(conv, "system_message"):
+            conv.system_message = OFFICIAL_SYSTEM_PROMPT
+        else:
+            user_prompt = OFFICIAL_SYSTEM_PROMPT + "\n\n" + user_prompt
+        conv.append_message(conv.roles[0], user_prompt)
+        conv.append_message(conv.roles[1], None)
+        return conv.get_prompt()
+
+    return f"{OFFICIAL_SYSTEM_PROMPT}\n\nUser: {user_prompt}\nAssistant:"
+
+
+def _build_logits_processor(temperature: float):
+    if temperature > 1e-5:
+        return prepare_logits_processor(temperature=temperature, top_p=0.0, top_k=0)
+    return None
+
+
+def _get_stop_token_ids(model) -> set[int]:
+    stop_ids = set()
+    tokenizer = getattr(model, "tokenizer", None)
+    if tokenizer is None:
+        return stop_ids
+    if tokenizer.eos_token_id is not None:
+        stop_ids.add(int(tokenizer.eos_token_id))
+    try:
+        eot_id = tokenizer.convert_tokens_to_ids("<|eot_id|>")
+        if eot_id is not None and eot_id >= 0:
+            stop_ids.add(int(eot_id))
+    except Exception:
+        pass
+    return stop_ids
+
+
+def _should_stop(model, current_input_ids: torch.Tensor, input_len: int,
+                 num_total_generated: int, max_new_tokens: int,
+                 max_seq_len: int = 1748) -> bool:
+    if current_input_ids.shape[1] >= max_seq_len or num_total_generated >= max_new_tokens:
+        return True
+
+    stop_ids = _get_stop_token_ids(model)
+    if not stop_ids:
+        return False
+
+    generated_tokens = current_input_ids[0, input_len:].tolist()
+    return any(token_id in stop_ids for token_id in generated_tokens)
+
+
+def _init_kv_cache(model, max_length: int = 2048):
+    if hasattr(model, "past_key_values") and model.past_key_values is not None:
+        reset_past_key_values(model.past_key_values)
+        past_key_values = model.past_key_values
+        past_key_values_data = model.past_key_values_data
+        current_length_data = model.current_length_data
+        current_length_data.zero_()
+    else:
+        past_key_values, past_key_values_data, current_length_data = initialize_past_key_values(
+            model.base_model, max_length=max_length
+        )
+        model.past_key_values = past_key_values
+        model.past_key_values_data = past_key_values_data
+        model.current_length_data = current_length_data
+
+    reset_tree_mode(model)
+    if hasattr(model, "ea_layer") and hasattr(model.ea_layer, "reset_kv"):
+        model.ea_layer.reset_kv()
+
+    return past_key_values, past_key_values_data, current_length_data
+
+
+def _copy_selected_kv(past_key_values_data, select_indices: torch.Tensor, prev_len: int):
+    for pkv_data in past_key_values_data:
+        tgt = pkv_data[..., select_indices.to(pkv_data.device), :]
+        dst = pkv_data[..., prev_len: prev_len + tgt.shape[-2], :]
+        dst.copy_(tgt, non_blocking=True)
+
+
+def _policy_predict_discrete(policy, obs_tensor: torch.Tensor, policy_device: torch.device) -> int:
+    with torch.inference_mode():
+        action = policy._predict(obs_tensor.unsqueeze(0).to(policy_device), deterministic=True)
+    return int(action.squeeze().item())
+
+
+class EagleRLController:
+    def __init__(self, model, current_input_ids: torch.Tensor, past_key_values,
+                 past_key_values_data, current_length_data, logits_processor=None,
+                 depth_policy=None, size_policy=None,
+                 hardware_profile=None,
+                 policy_device: Optional[torch.device] = None):
+        self.model = model
+        # Suffix / verification / ea_layer device (may differ from embed device under device_map).
+        self.device = _suffix_device(model)
+        self.input_device = _input_device(model)
+        self.policy_device = policy_device if policy_device is not None else self.device
+        self.current_input_ids = current_input_ids.to(self.input_device)
+        self.past_key_values = past_key_values
+        self.past_key_values_data = past_key_values_data
+        self.current_length_data = current_length_data
+        self.logits_processor = logits_processor
+        self.depth_policy = depth_policy
+        self.size_policy = size_policy
+        self.hardware_profile = hardware_profile or resolve_hardware_profile("balanced")
+        self.hardware_profile_features = torch.tensor(
+            hardware_profile_vector(self.hardware_profile),
+            dtype=torch.float32,
+            device=self.device,
+        )
+        self.ea_layer_top_k = model.ea_layer.top_k
+        self.max_draft_depth = 12
+        self.base_obs_size = 1268
+        self.base_obs_size_depth = 128
+        self.obs_size = infer_policy_obs_size(self.size_policy, self.base_obs_size)
+        self.obs_size_depth = infer_policy_obs_size(self.depth_policy, self.base_obs_size_depth)
+        self.cu_scores_for_obs = None
+        self.random_depth_this_step = 0
+        self.new_token_count = 0
+        self.size_actions = []
+        self.depth_stop_points = []
+        self.depth_policy_calls = 0
+        self.obs_buffer = torch.zeros(self.obs_size, dtype=torch.float32, device=self.device)
+        self.obs_buffer_depth = torch.zeros(self.obs_size_depth, dtype=torch.float32, device=self.device)
+
+    def _append_hardware_profile(self, obs_buffer: torch.Tensor, base_size: int) -> torch.Tensor:
+        if obs_buffer.numel() >= base_size + len(COEFF_KEYS):
+            obs_buffer[base_size:base_size + len(COEFF_KEYS)] = self.hardware_profile_features
+        return obs_buffer
+
+    def _get_obs_depth(self) -> torch.Tensor:
+        self.obs_buffer_depth.zero_()
+        if self.cu_scores_for_obs is not None:
+            scores = self.cu_scores_for_obs.detach().float().flatten()
+        self.obs_buffer_depth[0: scores.numel()] = scores
+        self.obs_buffer_depth[100:114].fill_(self.current_input_ids.shape[1] / 1000.0)
+        self.obs_buffer_depth[114:128].fill_(self.cnet_step / 10.0)
+        self._append_hardware_profile(self.obs_buffer_depth, self.base_obs_size_depth)
+        return self.obs_buffer_depth
+
+    def _get_obs(self) -> torch.Tensor:
+        self.obs_buffer.zero_()
+        scores = torch.cat(self.scores_list, dim=0).view(-1).detach().float()
+        self.obs_buffer[0: scores.numel()] = scores
+        self.obs_buffer[1210:1239].fill_(self.current_input_ids.shape[1] / 1000.0)
+        self.obs_buffer[1239:1268].fill_(self.cnet_step / 10.0)
+        self._append_hardware_profile(self.obs_buffer, self.base_obs_size)
+        return self.obs_buffer
+
+    def bootstrap(self) -> int:
+        draft_tokens, retrieve_indices, tree_mask, tree_position_ids, _, _, _ = initialize_tree(
+            self.current_input_ids, self.model, self.past_key_values, self.logits_processor
+        )
+        retrieve_indices_cpu = retrieve_indices.detach().cpu()
+
+        # Base-model verification starts at the embedding shard. Keep its token
+        # ids/masks there; the EAGLE draft layer itself lives on self.device.
+        self.model.base_model.model.tree_mask = tree_mask.to(self.input_device)
+        logits_verify, hidden_state_new_verify, _ = tree_decoding(
+            self.model,
+            draft_tokens.to(self.input_device),
+            self.past_key_values,
+            tree_position_ids.to(self.input_device),
+            self.current_input_ids,
+            retrieve_indices_cpu,
+        )
+
+        draft_tokens_for_candidates = draft_tokens.to(logits_verify.device)
+        padding = torch.full((1, 1), -1, dtype=torch.long, device=draft_tokens_for_candidates.device)
+        draft_tokens_padded = torch.cat((draft_tokens_for_candidates, padding), dim=1)
+        candidates = draft_tokens_padded[0, retrieve_indices_cpu]
+        best_candidate_idx, accept_length, sample_p = evaluate_posterior(
+            logits_verify, candidates, self.logits_processor
+        )
+        best_candidate = _as_int(best_candidate_idx)
+        accept_len = _as_int(accept_length)
+
+        prev_len = self.current_input_ids.shape[1]
+        accepted_tokens = candidates[best_candidate, :accept_len + 1]
+        self.current_input_ids = torch.cat(
+            (self.current_input_ids, accepted_tokens.unsqueeze(0).to(self.current_input_ids.device)),
+            dim=-1,
+        )
+
+        select_indices = retrieve_indices_cpu[best_candidate, :accept_len + 1] + prev_len
+        _copy_selected_kv(self.past_key_values_data, select_indices, prev_len)
+        self.current_length_data.fill_(self.current_input_ids.shape[1])
+
+        retrieve_hidden_state_new = hidden_state_new_verify[:, retrieve_indices_cpu.to(hidden_state_new_verify.device)]
+        accepted_hidden_state_base = retrieve_hidden_state_new[:, best_candidate, :accept_len + 1]
+        next_token_sampled = torch.argmax(sample_p).unsqueeze(0).unsqueeze(0)
+
+        self.new_token_count += accept_len + 1
+        self.accepted_hidden_state_base_for_next_topk = accepted_hidden_state_base
+        self.next_token_sampled_for_next_topk = next_token_sampled
+        return accept_len + 1
+
+    def _prepare_for_drafting(self, accepted_hidden_state_base, next_token_sampled):
+        self.hidden_states_for_topk_ea_layer = accepted_hidden_state_base.to(self.device)
+        self.input_ids_for_topk_first_pass = torch.cat(
+            (self.current_input_ids, next_token_sampled.to(self.current_input_ids.device)), dim=1
+        )
+        self.current_sample_token_for_topk = self.input_ids_for_topk_first_pass[:, -1].to(self.device)
+
+        self.scores_list = []
+        self.parents_list = []
+        self.ss_token_list = []
+
+        input_ids_for_ea_layer_first_iter = self.input_ids_for_topk_first_pass[:, 1:].to(self.device)
+        self.len_posi_for_topk_loop = input_ids_for_ea_layer_first_iter.shape[1]
+
+        self.model.ea_layer.reset()
+        kv_len = 0
+        if hasattr(self.model.ea_layer, "stable_kv") and self.model.ea_layer.stable_kv is not None:
+            kv_len = self.model.ea_layer.stable_kv[0][0].shape[2]
+        input_ids_for_forward = input_ids_for_ea_layer_first_iter[:, kv_len:] if kv_len > 0 else input_ids_for_ea_layer_first_iter
+
+        out_hidden, past_key_values_ealayer = self.model.ea_layer(
+            self.hidden_states_for_topk_ea_layer,
+            input_ids=input_ids_for_forward,
+            past_key_values=self.model.ea_layer.stable_kv if kv_len > 0 else None,
+            use_cache=True,
+        )
+
+        self.model.ea_layer.stable_kv = past_key_values_ealayer
+        self.current_past_key_values_ealayer = past_key_values_ealayer
+
+        last_hidden_ea_layer = out_hidden[:, -1]
+        last_headout = self.model.ea_layer.lm_head(self.model.ea_layer.norm(last_hidden_ea_layer))
+        last_p = self.model.ea_layer.logsoftmax(last_headout)
+        top = torch.topk(last_p, self.ea_layer_top_k, dim=-1)
+        topk_index, topk_p = top.indices, top.values
+
+        current_scores = topk_p[0]
+        self.scores_list.append(current_scores[None])
+        self.current_scores_for_topk_loop_obs = current_scores
+        self.parents_list.append(torch.zeros(1, dtype=torch.long, device=current_scores.device))
+
+        if self.model.ea_layer.config.vocab_size == self.model.ea_layer.config.draft_vocab_size:
+            self.ss_token_list.append(topk_index)
+            input_ids_for_next_depth_iter = topk_index
+        else:
+            d2t = self.model.ea_layer.d2t.to(topk_index.device)
+            mapped_tokens = topk_index + d2t[topk_index]
+            self.ss_token_list.append(mapped_tokens)
+            input_ids_for_next_depth_iter = mapped_tokens
+
+        self.current_input_ids_for_topk_depth_iter = input_ids_for_next_depth_iter
+        self.current_input_hidden_for_topk_depth_iter = last_hidden_ea_layer[None].repeat(1, self.ea_layer_top_k, 1)
+        self.current_tree_mask_for_topk_loop = self.model.ea_layer.tree_mask_init.clone().to(self.device)
+        self.current_topk_cs_index_for_loop = torch.arange(
+            self.ea_layer_top_k, device=self.model.ea_layer.embed_tokens.weight.device
+        )
+        self.cnet_step = 0
+        self.cu_scores_for_obs = None
+
+    def _perform_dynamic_depth_expansion(self):
+        self.random_depth_this_step = self.max_draft_depth
+        for depth_idx in range(self.random_depth_this_step):
+            self.model.ea_layer.tree_mask = self.current_tree_mask_for_topk_loop.to(self.device)
+            current_ea_layer_position_ids = self.len_posi_for_topk_loop + self.model.ea_layer.position_ids.to(self.device)
+
+            out_hidden, past_key_values_ealayer_new = self.model.ea_layer(
+                self.current_input_hidden_for_topk_depth_iter.to(self.device),
+                input_ids=self.current_input_ids_for_topk_depth_iter.to(self.device),
+                past_key_values=self.current_past_key_values_ealayer,
+                position_ids=current_ea_layer_position_ids,
+                use_cache=True,
+            )
+            self.len_posi_for_topk_loop += 1
+            self.current_past_key_values_ealayer = past_key_values_ealayer_new
+
+            bias1 = self.ea_layer_top_k if self.cnet_step > 0 else 0
+            bias2 = max(0, self.cnet_step - 1)
+            bias = 1 + self.ea_layer_top_k * self.ea_layer_top_k * bias2 + bias1
+
+            parents = self.current_topk_cs_index_for_loop + bias
+            self.parents_list.append(parents)
+
+            last_headout = self.model.ea_layer.lm_head(self.model.ea_layer.norm(out_hidden[0]))
+            last_p = self.model.ea_layer.logsoftmax(last_headout)
+            top = torch.topk(last_p, self.ea_layer_top_k, dim=-1)
+            topk_index, topk_p = top.indices, top.values
+
+            cu_scores = topk_p + self.current_scores_for_topk_loop_obs[:, None]
+            topk_cs = torch.topk(cu_scores.view(-1), self.ea_layer_top_k, dim=-1)
+            topk_cs_index_new, topk_cs_p_new = topk_cs.indices, topk_cs.values
+            self.cu_scores_for_obs = cu_scores.flatten()
+            self.current_scores_for_topk_loop_obs = topk_cs_p_new
+            self.current_topk_cs_index_for_loop = topk_cs_index_new
+
+            out_ids = topk_cs_index_new // self.ea_layer_top_k
+            out_ids_for_hidden = out_ids.to(out_hidden.device)
+            out_ids_for_mask = out_ids.to(self.current_tree_mask_for_topk_loop.device)
+            self.current_input_hidden_for_topk_depth_iter = out_hidden[:, out_ids_for_hidden]
+            next_input_ids_val = topk_index.view(-1)[topk_cs_index_new][None]
+
+            if self.model.ea_layer.config.vocab_size == self.model.ea_layer.config.draft_vocab_size:
+                self.ss_token_list.append(topk_index)
+                self.current_input_ids_for_topk_depth_iter = next_input_ids_val
+            else:
+                d2t = self.model.ea_layer.d2t.to(next_input_ids_val.device)
+                mapped_tokens = next_input_ids_val + d2t[next_input_ids_val.squeeze()].unsqueeze(0)
+                self.ss_token_list.append(topk_index + d2t[topk_index.squeeze()])
+                self.current_input_ids_for_topk_depth_iter = mapped_tokens
+
+            self.scores_list.append(cu_scores)
+
+            if (
+                self.current_tree_mask_for_topk_loop.shape[2] > 0
+                and out_ids_for_mask.max() < self.current_tree_mask_for_topk_loop.shape[2]
+            ):
+                self.current_tree_mask_for_topk_loop = torch.cat(
+                    (
+                        self.current_tree_mask_for_topk_loop[:, :, out_ids_for_mask],
+                        self.model.ea_layer.tree_mask_init.clone().to(self.device),
+                    ),
+                    dim=3,
+                )
+            self.cnet_step += 1
+
+            if self.depth_policy is not None and depth_idx != self.random_depth_this_step - 1 and depth_idx % 3 == 2:
+                self.depth_policy_calls += 1
+                action_depth = _policy_predict_discrete(self.depth_policy, self._get_obs_depth(), self.policy_device)
+                if action_depth == 0:
+                    self.random_depth_this_step = depth_idx + 1
+                    break
+
+        self.depth_stop_points.append(int(self.random_depth_this_step))
+
+    def _finalize_draft_tree(self, total_token_val_action: int):
+        scores_cat = torch.cat(self.scores_list, dim=0).view(-1)
+        ss_token_cat = torch.cat(self.ss_token_list, dim=0).view(-1)
+        actual_total_tokens = min(ss_token_cat.shape[0], total_token_val_action)
+
+        top_scores_indices = torch.topk(scores_cat, actual_total_tokens, dim=-1).indices
+        top_scores_indices_sorted = torch.sort(top_scores_indices).values
+
+        draft_tokens_flat = ss_token_cat[top_scores_indices_sorted]
+        finalized_draft_tokens = torch.cat(
+            (self.current_sample_token_for_topk.to(self.device), draft_tokens_flat), dim=0
+        ).unsqueeze(0)
+
+        num_final_draft_plus_sample = finalized_draft_tokens.shape[1]
+        draft_parents_flat = torch.cat(self.parents_list, dim=0)[top_scores_indices_sorted // self.ea_layer_top_k].long()
+        mask_index = torch.searchsorted(top_scores_indices_sorted, draft_parents_flat - 1, right=False)
+        mask_index[draft_parents_flat == 0] = -1
+        mask_index = mask_index + 1
+        mask_index_list = mask_index.tolist()
+
+        tree_mask_bool = torch.eye(num_final_draft_plus_sample, device=self.device).bool()
+        tree_mask_bool[:, 0] = True
+        for i in range(actual_total_tokens):
+            tree_mask_bool[i + 1].add_(tree_mask_bool[mask_index_list[i]])
+
+        finalized_tree_mask = tree_mask_bool.float()[None, None]
+        finalized_tree_position_ids = torch.sum(tree_mask_bool.int(), dim=1) - 1
+
+        max_depth = torch.max(finalized_tree_position_ids) + 1
+        noleaf_index = torch.unique(mask_index).tolist()
+        leaf_num = actual_total_tokens - (len(noleaf_index) - 1)
+        retrieve_indices = torch.zeros(leaf_num, max_depth.item(), dtype=torch.long) - 1
+        retrieve_indices = retrieve_indices.tolist()
+
+        rid = 0
+        position_ids_list = finalized_tree_position_ids.tolist()
+        for i in range(actual_total_tokens + 1):
+            if i not in noleaf_index:
+                cid = i
+                depth = position_ids_list[i]
+                for j in reversed(range(depth + 1)):
+                    retrieve_indices[rid][j] = cid
+                    cid = mask_index_list[cid - 1] if cid > 0 else -1
+                rid += 1
+
+        finalized_retrieve_indices = torch.tensor(retrieve_indices, dtype=torch.long, device=self.device)
+        return finalized_draft_tokens, finalized_tree_mask, finalized_tree_position_ids, finalized_retrieve_indices
+
+    def run_cycle(self) -> int:
+        self._prepare_for_drafting(
+            self.accepted_hidden_state_base_for_next_topk,
+            self.next_token_sampled_for_next_topk,
+        )
+        self._perform_dynamic_depth_expansion()
+
+        if self.size_policy is None:
+            action = 5
+            total_token_val_action = 60
+        else:
+            action = _policy_predict_discrete(self.size_policy, self._get_obs(), self.policy_device)
+            total_token_val_action = (action + 1) * 10
+
+        self.size_actions.append(int(action))
+
+        finalized_draft_tokens, finalized_tree_mask, finalized_tree_position_ids, finalized_retrieve_indices = (
+            self._finalize_draft_tree(total_token_val_action)
+        )
+        finalized_retrieve_indices_cpu = finalized_retrieve_indices.detach().cpu()
+
+        self.model.base_model.model.tree_mask = finalized_tree_mask.to(self.input_device)
+        logits_verify, hidden_state_new_verify, _ = tree_decoding(
+            self.model,
+            finalized_draft_tokens.to(self.input_device),
+            self.past_key_values,
+            finalized_tree_position_ids.to(self.input_device),
+            self.current_input_ids,
+            finalized_retrieve_indices_cpu,
+        )
+
+        finalized_draft_tokens_for_candidates = finalized_draft_tokens.to(logits_verify.device)
+        padding = torch.full((1, 1), -1, dtype=torch.long, device=finalized_draft_tokens_for_candidates.device)
+        draft_tokens_padded = torch.cat((finalized_draft_tokens_for_candidates, padding), dim=1)
+        candidates = draft_tokens_padded[0, finalized_retrieve_indices_cpu]
+        best_candidate_idx, accept_length, sample_p = evaluate_posterior(
+            logits_verify, candidates, self.logits_processor
+        )
+        best_candidate = _as_int(best_candidate_idx)
+        accept_len = _as_int(accept_length)
+
+        prev_len = self.current_input_ids.shape[1]
+        accepted_tokens = candidates[best_candidate, :accept_len + 1]
+        self.current_input_ids = torch.cat(
+            (self.current_input_ids, accepted_tokens.unsqueeze(0).to(self.current_input_ids.device)),
+            dim=-1,
+        )
+
+        select_indices = finalized_retrieve_indices_cpu[best_candidate, :accept_len + 1] + prev_len
+        _copy_selected_kv(self.past_key_values_data, select_indices, prev_len)
+        self.current_length_data.fill_(self.current_input_ids.shape[1])
+
+        retrieve_hidden_state_new = hidden_state_new_verify[
+            :, finalized_retrieve_indices_cpu.to(hidden_state_new_verify.device)
+        ]
+        self.accepted_hidden_state_base_for_next_topk = retrieve_hidden_state_new[:, best_candidate, :accept_len + 1]
+        self.next_token_sampled_for_next_topk = torch.argmax(sample_p).unsqueeze(0).unsqueeze(0)
+        self.new_token_count += accept_len + 1
+        return accept_len + 1
+
+    def get_stats(self) -> Dict[str, float]:
+        avg_size_action = float(np.mean(self.size_actions)) if self.size_actions else 0.0
+        avg_size_tokens = float(np.mean([(action + 1) * 10 for action in self.size_actions])) if self.size_actions else 0.0
+        avg_depth_stop = float(np.mean(self.depth_stop_points)) if self.depth_stop_points else 0.0
+        return {
+            "avg_size_action": avg_size_action,
+            "avg_size_tokens": avg_size_tokens,
+            "avg_depth_stop": avg_depth_stop,
+            "depth_policy_calls": float(self.depth_policy_calls),
+        }
+
+
+def baseline_decoding(model, input_ids: torch.Tensor, max_new_tokens: int = 256,
+                      temperature: float = 0.0) -> Tuple[int, float]:
+    """
+    Vanilla auto-regressive decoding (baseline) aligned with the repo's official
+    naivegenerate evaluation path.
+    Returns: (num_generated_tokens, elapsed_time_in_seconds)
+    """
+    start_time = time.time()
+    is_llama3 = 128009 in _get_stop_token_ids(model)
+    with torch.no_grad():
+        _, new_token, _ = model.naivegenerate(
+            input_ids.clone(),
+            temperature=temperature,
+            max_new_tokens=max_new_tokens,
+            log=True,
+            is_llama3=is_llama3,
+        )
+    elapsed = time.time() - start_time
+    return _as_int(new_token), elapsed
+
+
+def eagle3_decoding(model, input_ids: torch.Tensor,
+                    draft_depth: int = 5, verification_size: int = 60,
+                    max_new_tokens: int = 256, temperature: float = 0.0,
+                    logits_processor=None) -> Dict:
+    """
+    Eagle3 tree-based speculative decoding with static config, using the repo's
+    official eagenerate path so benchmark behavior matches the paper more closely.
+    """
+    del logits_processor
+    start_time = time.time()
+    is_llama3 = 128009 in _get_stop_token_ids(model)
+
+    original_depth = model.ea_layer.depth
+    original_total_tokens = model.ea_layer.total_tokens
+    model.ea_layer.depth = draft_depth
+    model.ea_layer.total_tokens = max(1, verification_size - 1)
+
+    try:
+        with torch.no_grad():
+            _, new_token, _, _, accept_lengths = model.eagenerate(
+                input_ids.clone(),
+                temperature=temperature,
+                max_new_tokens=max_new_tokens,
+                log=True,
+                is_llama3=is_llama3,
+                pre_len=True,
+            )
+    finally:
+        model.ea_layer.depth = original_depth
+        model.ea_layer.total_tokens = original_total_tokens
+
+    elapsed = time.time() - start_time
+    total_cycles = len(accept_lengths)
+    ntok = _as_int(new_token)
+    total_accepted = sum(_as_int(a) for a in accept_lengths)
+    return {
+        "tokens_generated": ntok,
+        "elapsed_time": float(elapsed),
+        "throughput": (ntok / elapsed) if elapsed > 0 else 0.0,
+        "num_cycles": int(total_cycles),
+        "avg_acceptance_len": float(total_accepted / total_cycles) if total_cycles > 0 else 0.0,
+        "cycles_per_sec": (total_cycles / elapsed) if elapsed > 0 else 0.0,
+    }
+
+
+def eagle3_rl_decoding(model, input_ids: torch.Tensor,
+                       size_policy=None, depth_policy=None,
+                       max_new_tokens: int = 256, temperature: float = 0.0,
+                       logits_processor=None, hardware_profile=None) -> Dict:
+    """
+    Eagle3 with learned RL policies for dynamic depth and verification size.
+    This mirrors the reset/step logic in rl_total.py.
+    """
+    start_time = time.time()
+    logits_processor = logits_processor if logits_processor is not None else _build_logits_processor(temperature)
+
+    current_input_ids = input_ids.clone()
+    input_len = current_input_ids.shape[1]
+    num_total_generated = 0
+    total_cycles = 0
+    total_accepted = 0
+
+    past_key_values, past_key_values_data, current_length_data = _init_kv_cache(model)
+    policy_dev = input_ids.device
+    controller = EagleRLController(
+        model=model,
+        current_input_ids=current_input_ids,
+        past_key_values=past_key_values,
+        past_key_values_data=past_key_values_data,
+        current_length_data=current_length_data,
+        logits_processor=logits_processor,
+        depth_policy=depth_policy,
+        size_policy=size_policy,
+        hardware_profile=hardware_profile,
+        policy_device=policy_dev,
+    )
+
+    with torch.no_grad():
+        accepted = controller.bootstrap()
+        num_total_generated += accepted
+        total_accepted += accepted
+        total_cycles += 1
+
+        while num_total_generated < max_new_tokens:
+            if _should_stop(model, controller.current_input_ids, input_len, num_total_generated, max_new_tokens):
+                break
+
+            accepted = controller.run_cycle()
+            num_total_generated += accepted
+            total_accepted += accepted
+            total_cycles += 1
+
+    elapsed = time.time() - start_time
+    stats = controller.get_stats()
+    return {
+        "tokens_generated": num_total_generated,
+        "elapsed_time": elapsed,
+        "throughput": num_total_generated / elapsed if elapsed > 0 else 0,
+        "num_cycles": total_cycles,
+        "avg_acceptance_len": total_accepted / total_cycles if total_cycles > 0 else 0,
+        "cycles_per_sec": total_cycles / elapsed if elapsed > 0 else 0,
+        **stats,
+    }
+
+
+def main():
+    from pprint import pprint
+
+    parser = argparse.ArgumentParser(description="Benchmark RL-enhanced inference")
+    parser.add_argument("--base_model_path", type=str, default="meta-llama/Llama-3.1-8B-Instruct")
+    parser.add_argument("--ea_model_path", type=str, default="yuhuili/EAGLE3-LLaMA3.1-Instruct-8B")
+    parser.add_argument("--size_model_path", type=str, default="",
+                        help="Path to size RL model (.zip)")
+    parser.add_argument("--depth_model_path", type=str, default="",
+                        help="Path to depth RL model (.zip)")
+    parser.add_argument("--data_dir", type=str, default="./eagle/data")
+    parser.add_argument("--dataset_names", nargs="+", default=[],
+                        help="Dataset names to evaluate on")
+    parser.add_argument("--num_samples", type=int, default=1000,
+                        help="Number of samples per dataset")
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--batch_size", type=int, default=256)
+    parser.add_argument("--output_dir", type=str, default="./evaluate/results")
+    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--device_map", type=str, default="",
+                        help="Hugging Face device_map (e.g. auto): pipeline-style multi-GPU sharding, "
+                        "not vLLM/Megatron tensor parallel.")
+    add_quantization_args(parser)
+    parser.add_argument("--experiment_label", type=str, default="",
+                        help="Optional label stored in the result config for grouping benchmark runs.")
+    parser.add_argument("--policy_label", type=str, default="",
+                        help="Optional label for the loaded LTD policy checkpoint.")
+    parser.add_argument("--policy_train_gpu", type=str, default="",
+                        help="Optional label for the GPU/runtime used to train the LTD policy.")
+    parser.add_argument("--benchmark_gpu_tag", type=str, default="",
+                        help="Optional label for the requested benchmark GPU class.")
+    parser.add_argument("--hardware_profile", type=str, default="balanced",
+                        help="Hardware profile fed to hardware-conditioned RL policies.")
+    parser.add_argument("--hardware_cost_coeffs", type=str, default="",
+                        help="Optional comma-separated hardware-cost coefficient overrides.")
+    parser.add_argument("--warmup_runs", type=int, default=3,
+                        help="Untimed full pass (baseline + Eagle3 + Eagle3+RL) on the first prompt "
+                        "this many times to stabilize multi-GPU/cache before timed samples. Use 0 to disable.")
+
+    args = parser.parse_args()
+    hardware_profile = resolve_hardware_profile(
+        profile_name=args.hardware_profile,
+        cost_coeffs=args.hardware_cost_coeffs,
+    )
+
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    print("=" * 80)
+    print("🚀 RL-Enhanced Speculative Decoding Benchmark")
+    print("=" * 80)
+
+    print("\n📦 Loading models...")
+    print(f"  Base model: {args.base_model_path}")
+    print(f"  EA model: {args.ea_model_path}")
+    print(f"  Device: {args.device}")
+    print(f"  Hardware profile: {hardware_profile.name} {hardware_profile.as_dict()}")
+
+    gpu_name = torch.cuda.get_device_name(args.device) if torch.cuda.is_available() else "N/A"
+    print(f"  GPU: {gpu_name}")
+    cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+    cuda_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
+    if cuda_visible or cuda_count:
+        print(f"  CUDA_VISIBLE_DEVICES: {cuda_visible!r}  |  torch.cuda.device_count(): {cuda_count}")
+
+    model_kwargs = dict(
+        base_model_path=args.base_model_path,
+        ea_model_path=args.ea_model_path,
+        low_cpu_mem_usage=True,
+        depth=5,
+        top_k=10,
+        total_token=60,
+        use_eagle3=True,
+        use_dyn_len=False,
+    )
+    quantization = apply_quantization_config(model_kwargs, args)
+    quant_meta = quantization_metadata(args, quantization)
+    print(f"  Quantization: {quantization}")
+    print(f"  Effective device_map: {quant_meta['device_map'] or '(none)'}")
+
+    model = EaModel.from_pretrained(**model_kwargs)
+    if should_move_model_to_device(quantization, args.device_map):
+        model = model.to(args.device)
+    model.eval()
+
+    tokenizer = model.get_tokenizer()
+
+    # Vicuna and similar older models do not have chat_template set in their tokenizer.
+    # Manually set the Vicuna v1 conversation format so apply_chat_template works.
+    if tokenizer.chat_template is None:
+        tokenizer.chat_template = (
+            "{% for message in messages %}"
+            "{% if message['role'] == 'system' %}{{ message['content'] + '\n\n' }}"
+            "{% elif message['role'] == 'user' %}{{ 'USER: ' + message['content'] + '\n' }}"
+            "{% elif message['role'] == 'assistant' %}{{ 'ASSISTANT: ' + message['content'] + '</s>\n' }}"
+            "{% endif %}{% endfor %}"
+            "{% if add_generation_prompt %}{{ 'ASSISTANT:' }}{% endif %}"
+        )
+
+    size_policy = None
+    depth_policy = None
+
+    model_name = args.base_model_path.split("/")[-1]
+
+    if args.size_model_path == "":
+        args.size_model_path = f"checkpoints/{model_name}/size/final.zip"
+        print(f"  ℹ️ No size model path provided, defaulting to {args.size_model_path}")
+    if args.depth_model_path == "":
+        args.depth_model_path = f"checkpoints/{model_name}/depth/final.zip"
+        print(f"  ℹ️ No depth model path provided, defaulting to {args.depth_model_path}")
+    if args.dataset_names == []:
+        # list all subdirectories in data_dir as dataset names
+        args.dataset_names = [d for d in os.listdir(args.data_dir) if os.path.isdir(os.path.join(args.data_dir, d))]
+        print(f"  ℹ️ No dataset names provided, defaulting to all datasets:")
+        pprint(args.dataset_names)
+
+    if args.size_model_path and os.path.exists(args.size_model_path):
+        print(f"  Loading size policy: {args.size_model_path}")
+        try:
+            size_policy = PPO.load(args.size_model_path, device=args.device).policy
+            size_policy.to(args.device)
+            # UserWarning: You are trying to run PPO on the GPU, but it is primarily intended to run on the CPU when not using a CNN policy (you are using ActorCriticPolicy which should be a MlpPolicy). See https://github.com/DLR-RM/stable-baselines3/issues/1245 for more info. You can pass `device='cpu'` or `export CUDA_VISIBLE_DEVICES=` to force usingut it is primarily intended to run on the CPU w the CPU.Note: The model will train, but the GPU utilization will be poor and the training might take longer than on CPU.
+            size_policy.eval()
+        except Exception as e:
+            print(f"  ⚠️  Could not load size policy: {e}")
+
+    if args.depth_model_path and os.path.exists(args.depth_model_path):
+        print(f"  Loading depth policy: {args.depth_model_path}")
+        try:
+            depth_policy = PPO.load(args.depth_model_path, device=args.device).policy
+            depth_policy.to(args.device)
+            depth_policy.eval()
+        except Exception as e:
+            print(f"  ⚠️  Could not load depth policy: {e}")
+
+    input_dev = _input_device(model)
+    print(f"  Input device (embeddings / first stage): {input_dev}")
+
+    def _run_warmup(sample_input_ids: torch.Tensor) -> None:
+        if args.warmup_runs <= 0:
+            return
+        print(f"\n  Warmup ({args.warmup_runs} full passes on first prompt, untimed)...")
+        for _ in range(args.warmup_runs):
+            baseline_decoding(model, sample_input_ids.clone(), temperature=args.temperature)
+            eagle3_decoding(
+                model, sample_input_ids.clone(),
+                draft_depth=5, verification_size=60, temperature=args.temperature,
+            )
+            if size_policy is not None or depth_policy is not None:
+                try:
+                    eagle3_rl_decoding(
+                        model, sample_input_ids.clone(),
+                        size_policy=size_policy, depth_policy=depth_policy,
+                        temperature=args.temperature,
+                        hardware_profile=hardware_profile,
+                    )
+                except Exception as e:
+                    print(f"    Warmup Eagle3+RL skip: {e}")
+
+    print("\n" + "=" * 80)
+    print("🔬 Starting benchmark...")
+    print("=" * 80)
+
+    all_results = {
+        "config": {
+            "base_model_path": args.base_model_path,
+            "ea_model_path": args.ea_model_path,
+            "size_model_path": args.size_model_path,
+            "depth_model_path": args.depth_model_path,
+            "dataset_names": args.dataset_names,
+            "num_samples": args.num_samples,
+            "temperature": args.temperature,
+            "batch_size": args.batch_size,
+            "device": args.device,
+            "input_device": str(input_dev),
+            "experiment_label": args.experiment_label,
+            "policy_label": args.policy_label,
+            "policy_train_gpu": args.policy_train_gpu,
+            "benchmark_gpu_tag": args.benchmark_gpu_tag,
+            "hardware_profile": hardware_profile.name,
+            "hardware_cost_coeffs": hardware_profile.as_dict(),
+            **quant_meta,
+            "cuda_visible_devices": cuda_visible,
+            "torch_cuda_device_count": cuda_count,
+            "warmup_runs": args.warmup_runs,
+            "parallelism_note": (
+                "HuggingFace accelerate device_map shards layers across GPUs (pipeline-style). "
+                "This is not Megatron/vLLM tensor parallelism (no all-reduce matmul split)."
+            ),
+            "gpu_name": gpu_name,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+    }
+    pprint(all_results["config"])
+
+    _did_warmup = False
+    for dataset_name in args.dataset_names:
+        print(f"\n📊 Dataset: {dataset_name}")
+        print("-" * 80)
+
+        samples = load_and_sample_data(args.data_dir, dataset_name, args.num_samples, tokenizer)
+        if not samples:
+            print(f"  ⚠️  Skipping {dataset_name} (no samples)")
+            continue
+
+        if not _did_warmup and args.warmup_runs > 0:
+            w0 = samples[0]["input_ids"].to(input_dev)
+            _run_warmup(w0)
+            _did_warmup = True
+
+        dataset_results = {
+            "baseline": [],
+            "eagle3": [],
+            "eagle3_rl": [],
+        }
+
+        for i, sample in tqdm(enumerate(samples), total=len(samples), desc=f"Evaluating {dataset_name}"):
+            input_ids = sample["input_ids"].to(input_dev)
+
+            tokens, elapsed = baseline_decoding(model, input_ids, temperature=args.temperature)
+            dataset_results["baseline"].append({
+                "tokens": tokens,
+                "time": elapsed,
+                "throughput": tokens / elapsed if elapsed > 0 else 0,
+            })
+
+            res = eagle3_decoding(model, input_ids, draft_depth=5, verification_size=60, temperature=args.temperature)
+            dataset_results["eagle3"].append(res)
+
+            if size_policy is not None or depth_policy is not None:
+                try:
+                    res = eagle3_rl_decoding(
+                        model,
+                        input_ids,
+                        size_policy=size_policy,
+                        depth_policy=depth_policy,
+                        temperature=args.temperature,
+                        hardware_profile=hardware_profile,
+                    )
+                    dataset_results["eagle3_rl"].append(res)
+                except Exception as e:
+                    print(f"    ❌ Eagle3+RL error on sample {i}: {e}")
+
+        all_results[dataset_name] = dataset_results
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = os.path.join(args.output_dir, f"benchmark_results_{timestamp}.json")
+    with open(output_file, "w") as f:
+        json.dump(to_jsonable(all_results), f, indent=2)
+
+    print(f"\n✅ Results saved to {output_file}")
+
+    from evaluate.analyze_results import print_results
+    print_results(all_results)
+
+
+if __name__ == "__main__":
+    main()

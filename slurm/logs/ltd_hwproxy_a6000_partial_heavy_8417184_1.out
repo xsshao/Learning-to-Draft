@@ -1,0 +1,185 @@
+Benchmarking hardware-transfer policy 'bf16_hwproxy' on requested GPU tag 'rtxa6000'
+Requirement already satisfied: pip in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (26.0.1)
+Requirement already satisfied: setuptools in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (82.0.1)
+Requirement already satisfied: wheel in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (0.47.0)
+Requirement already satisfied: packaging>=24.0 in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (from wheel) (26.0)
+missing_modules=
+
+Qwen3-14B hardware-transfer benchmark:
+  Policy label:      bf16_hwproxy
+  Policy train GPU:  randomized_proxy
+  Eval quantization: bf16
+  Benchmark GPU tag: rtxa6000
+  Size policy:       /u/sx24/scratch/LTD_reproduce/checkpoints/hardware_transfer/Qwen3-14B/bf16_hwproxy/size/final.zip
+  Depth policy:      /u/sx24/scratch/LTD_reproduce/checkpoints/hardware_transfer/Qwen3-14B/bf16_hwproxy/depth/final.zip
+  Results:           /u/sx24/scratch/LTD_reproduce/evaluate/results/hardware_transfer_calibrated/a6000_partial_heavy/Qwen3-14B/bf16/rtxa6000/bf16_hwproxy
+==================================
+🚀 RL-Enhanced Inference Benchmark
+==================================
+Base Model:        Qwen/Qwen3-14B
+EA Model:          AngelSlim/Qwen3-14B_eagle3
+Size Model:        /u/sx24/scratch/LTD_reproduce/checkpoints/hardware_transfer/Qwen3-14B/bf16_hwproxy/size/final.zip
+Depth Model:       /u/sx24/scratch/LTD_reproduce/checkpoints/hardware_transfer/Qwen3-14B/bf16_hwproxy/depth/final.zip
+Datasets:          humaneval alpaca gsm8k mt_bench
+Samples per DS:    50
+Output Directory:  /u/sx24/scratch/LTD_reproduce/evaluate/results/hardware_transfer_calibrated/a6000_partial_heavy/Qwen3-14B/bf16/rtxa6000/bf16_hwproxy
+Quantization:      bf16
+8-bit Alias Used:  0
+Device Map:        auto
+Warmup runs:       3
+Experiment label:  qwen3_14b_hardware_transfer
+Policy label:      bf16_hwproxy
+Policy train GPU:  randomized_proxy
+Benchmark GPU tag: rtxa6000
+Hardware profile:  rtxa6000
+Cost overrides:    draft=0,verify=0.0051661561,depth=0,kv=0,launch=0,fixed=1.2950373
+==================================
+
+Starting benchmark...
+python /u/sx24/scratch/LTD_reproduce/evaluate/benchmark_hw_transfer.py --base_model_path Qwen/Qwen3-14B --ea_model_path AngelSlim/Qwen3-14B_eagle3 --data_dir /u/sx24/scratch/LTD_reproduce/eagle/data --dataset_names humaneval alpaca gsm8k mt_bench --num_samples 50 --temperature 0.0 --output_dir /u/sx24/scratch/LTD_reproduce/evaluate/results/hardware_transfer_calibrated/a6000_partial_heavy/Qwen3-14B/bf16/rtxa6000/bf16_hwproxy --device cuda --quantization bf16 --size_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/hardware_transfer/Qwen3-14B/bf16_hwproxy/size/final.zip --depth_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/hardware_transfer/Qwen3-14B/bf16_hwproxy/depth/final.zip --device_map auto --warmup_runs 3 --hardware_profile rtxa6000 --hardware_cost_coeffs draft=0\,verify=0.0051661561\,depth=0\,kv=0\,launch=0\,fixed=1.2950373 --experiment_label qwen3_14b_hardware_transfer --policy_label bf16_hwproxy --policy_train_gpu randomized_proxy --benchmark_gpu_tag rtxa6000 
+================================================================================
+🚀 RL-Enhanced Speculative Decoding Benchmark
+================================================================================
+
+📦 Loading models...
+  Base model: Qwen/Qwen3-14B
+  EA model: AngelSlim/Qwen3-14B_eagle3
+  Device: cuda
+  Hardware profile: rtxa6000+custom {'draft': 0.0, 'verify': 0.0051661561, 'depth': 0.0, 'kv': 0.0, 'launch': 0.0, 'fixed': 1.2950373}
+  GPU: NVIDIA RTX A6000
+  CUDA_VISIBLE_DEVICES: '0'  |  torch.cuda.device_count(): 1
+  Quantization: bf16
+  Effective device_map: auto
+  Loading size policy: /u/sx24/scratch/LTD_reproduce/checkpoints/hardware_transfer/Qwen3-14B/bf16_hwproxy/size/final.zip
+  Loading depth policy: /u/sx24/scratch/LTD_reproduce/checkpoints/hardware_transfer/Qwen3-14B/bf16_hwproxy/depth/final.zip
+  Input device (embeddings / first stage): cuda:0
+
+================================================================================
+🔬 Starting benchmark...
+================================================================================
+{'base_model_path': 'Qwen/Qwen3-14B',
+ 'batch_size': 256,
+ 'benchmark_gpu_tag': 'rtxa6000',
+ 'bnb_4bit_compute_dtype': '',
+ 'bnb_4bit_quant_type': '',
+ 'bnb_4bit_use_double_quant': False,
+ 'cuda_visible_devices': '0',
+ 'dataset_names': ['humaneval', 'alpaca', 'gsm8k', 'mt_bench'],
+ 'depth_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/hardware_transfer/Qwen3-14B/bf16_hwproxy/depth/final.zip',
+ 'device': 'cuda',
+ 'device_map': 'auto',
+ 'ea_model_path': 'AngelSlim/Qwen3-14B_eagle3',
+ 'experiment_label': 'qwen3_14b_hardware_transfer',
+ 'gpu_name': 'NVIDIA RTX A6000',
+ 'hardware_cost_coeffs': {'depth': 0.0,
+                          'draft': 0.0,
+                          'fixed': 1.2950373,
+                          'kv': 0.0,
+                          'launch': 0.0,
+                          'verify': 0.0051661561},
+ 'hardware_profile': 'rtxa6000+custom',
+ 'input_device': 'cuda:0',
+ 'load_in_4bit': False,
+ 'load_in_8bit': False,
+ 'num_samples': 50,
+ 'parallelism_note': 'HuggingFace accelerate device_map shards layers across '
+                     'GPUs (pipeline-style). This is not Megatron/vLLM tensor '
+                     'parallelism (no all-reduce matmul split).',
+ 'policy_label': 'bf16_hwproxy',
+ 'policy_train_gpu': 'randomized_proxy',
+ 'quantization': 'bf16',
+ 'size_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/hardware_transfer/Qwen3-14B/bf16_hwproxy/size/final.zip',
+ 'temperature': 0.0,
+ 'timestamp': '2026-05-06 22:58:58',
+ 'torch_cuda_device_count': 1,
+ 'torch_dtype': 'bfloat16',
+ 'warmup_runs': 3}
+
+📊 Dataset: humaneval
+--------------------------------------------------------------------------------
+✓ Loaded 50 samples from humaneval
+
+  Warmup (3 full passes on first prompt, untimed)...
+Evaluating humaneval 100% ━━━━━━━━━━━━━━━━ 50/50  [ 0:19:43 < 0:00:00 , 0 it/s ]
+
+📊 Dataset: alpaca
+--------------------------------------------------------------------------------
+✓ Loaded 50 samples from alpaca
+Evaluating alpaca 100% ━━━━━━━━━━━━━━━━━━━ 50/50  [ 0:18:07 < 0:00:00 , 0 it/s ]
+
+📊 Dataset: gsm8k
+--------------------------------------------------------------------------------
+✓ Loaded 50 samples from gsm8k
+Evaluating gsm8k 100% ━━━━━━━━━━━━━━━━━━━━ 50/50  [ 0:18:39 < 0:00:00 , 0 it/s ]
+
+📊 Dataset: mt_bench
+--------------------------------------------------------------------------------
+✓ Loaded 50 samples from mt_bench
+Evaluating mt_bench 100% ━━━━━━━━━━━━━━━━━ 50/50  [ 0:19:48 < 0:00:00 , 0 it/s ]
+
+✅ Results saved to /u/sx24/scratch/LTD_reproduce/evaluate/results/hardware_transfer_calibrated/a6000_partial_heavy/Qwen3-14B/bf16/rtxa6000/bf16_hwproxy/benchmark_results_20260507_001625.json
+==============================================================================================================
+BENCHMARK RESULTS ANALYSIS
+==============================================================================================================
+
+Run Configuration:
+  Base model:    Qwen/Qwen3-14B
+  EA model:      AngelSlim/Qwen3-14B_eagle3
+  Size policy:   /u/sx24/scratch/LTD_reproduce/checkpoints/hardware_transfer/Qwen3-14B/bf16_hwproxy/size/final.zip
+  Depth policy:  /u/sx24/scratch/LTD_reproduce/checkpoints/hardware_transfer/Qwen3-14B/bf16_hwproxy/depth/final.zip
+  Datasets:      humaneval, alpaca, gsm8k, mt_bench
+  Num samples:   50
+  Batch size:    256
+  Temperature:   0.0
+  Device:        cuda
+  Quantization:  bf16
+  Timestamp:     2026-05-06 22:58:58
+
+                                              Dataset: humaneval                                              
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      12.8537      19.99          —            —          —            —
+eagle3               258.9      5.1902       50.25          3.91         —          —            2.51x
+eagle3_rl            257.1      5.6173       45.95          2.99         10.0       3.00         2.30x
+
+
+                                               Dataset: alpaca                                                
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             233.3      11.5264      20.24          —            —          —            —
+eagle3               231.3      4.8975       48.05          3.66         —          —            2.37x
+eagle3_rl            234.3      5.3274       44.68          2.85         10.0       3.00         2.21x
+
+
+                                                Dataset: gsm8k                                                
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             256.9      12.7585      20.14          —            —          —            —
+eagle3               258.7      4.6101       56.70          4.36         —          —            2.82x
+eagle3_rl            257.6      5.0216       51.52          3.32         10.0       3.00         2.56x
+
+
+                                              Dataset: mt_bench                                               
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      12.7535      20.15          —            —          —            —
+eagle3               258.6      5.3342       49.88          3.83         —          —            2.48x
+eagle3_rl            257.2      5.6904       45.87          2.95         10.0       3.00         2.28x
+
+==============================================================================================================
+Analysis complete!
+
+✅ Benchmark complete!
+Results saved to: /u/sx24/scratch/LTD_reproduce/evaluate/results/hardware_transfer_calibrated/a6000_partial_heavy/Qwen3-14B/bf16/rtxa6000/bf16_hwproxy
+source_policy train_gpu bench_tag actual_gpu                 eval_quant dataset      eagle3_rl  rl/eagle3  rl/base  accept  size  depth
+--------------------------------------------------------------------------------------------------------------------------------------------
+bf16_hwproxy  randomized_proxy rtxa6000  NVIDIA RTX A6000           bf16       humaneval        45.95     0.914    2.298    2.99 10.00   3.00
+bf16_hwproxy  randomized_proxy rtxa6000  NVIDIA RTX A6000           bf16       alpaca           44.68     0.930    2.207    2.85 10.00   3.00
+bf16_hwproxy  randomized_proxy rtxa6000  NVIDIA RTX A6000           bf16       gsm8k            51.52     0.909    2.558    3.32 10.00   3.00
+bf16_hwproxy  randomized_proxy rtxa6000  NVIDIA RTX A6000           bf16       mt_bench         45.87     0.920    2.276    2.95 10.00   3.00
+
+Saved CSV summary to /u/sx24/scratch/LTD_reproduce/evaluate/results/hardware_transfer_calibrated/a6000_partial_heavy/Qwen3-14B/bf16/rtxa6000/summary.csv

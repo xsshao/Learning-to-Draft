@@ -1,0 +1,108 @@
+\begin{thebibliography}{10}
+
+\bibitem{leviathan2023fast}
+Yaniv Leviathan, Matan Kalman, and Yossi Matias.
+\newblock Fast inference from transformers via speculative decoding.
+\newblock {\em International Conference on Machine Learning (ICML)}, 2023.
+
+\bibitem{ltd2025}
+Jiebin Zhang, Zhenghan Yu, Liang Wang, Nan Yang, Eugene~J. Yu, Zheng Li, Yifan
+  Song, Dawei Zhu, Xingxing Zhang, Furu Wei, and Sujian Li.
+\newblock Learning to draft: Adaptive speculative decoding with reinforcement
+  learning, 2026.
+
+\bibitem{eagle3}
+Yuhui Li, Fangyun Wei, Chao Zhang, and Hongyang Zhang.
+\newblock Eagle-3: Scalable speculative decoding with relaxed draft-token
+  consistency.
+\newblock {\em arXiv preprint arXiv:2503.01840}, 2025.
+
+\bibitem{chen2023accelerating}
+Charlie Chen, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau,
+  Laurent Sifre, and John Jumper.
+\newblock Accelerating large language model decoding with speculative sampling.
+\newblock {\em arXiv preprint arXiv:2302.01318}, 2023.
+
+\bibitem{specinfer}
+Xupeng Miao, Gabriele Oliaro, Zhihao Zhang, Xinhao Cheng, Zeyu Wang, Zhengxin
+  Zhang, Rae Ying~Yee Wong, Alan Zhu, Lijie Yang, Xiaoxiang Shi, et~al.
+\newblock Specinfer: Accelerating generative large language model serving with
+  tree-based speculative inference and verification.
+\newblock {\em arXiv preprint arXiv:2305.09781}, 2023.
+
+\bibitem{eagle2}
+Yuhui Li, Fangyun Wei, Chao Zhang, and Hongyang Zhang.
+\newblock Eagle-2: Faster inference of language models with dynamic draft
+  trees.
+\newblock In {\em Proceedings of the 2024 Conference on Empirical Methods in
+  Natural Language Processing}, pages 7421--7432, 2024.
+
+\bibitem{medusa}
+Tianle Cai, Yuhong Li, Zhengyang Geng, Hongwu Peng, Jason~D Lee, Deming Chen,
+  and Tri Dao.
+\newblock Medusa: Simple llm inference acceleration framework with multiple
+  decoding heads.
+\newblock In {\em International Conference on Machine Learning}, pages
+  5209--5235, 2024.
+
+\bibitem{schulman2017ppo}
+John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford, and Oleg Klimov.
+\newblock Proximal policy optimization algorithms.
+\newblock {\em arXiv preprint arXiv:1707.06347}, 2017.
+
+\bibitem{sb3}
+Antonin Raffin, Ashley Hill, Adam Gleave, Anssi Kanervisto, Maximilian
+  Ernestus, and Noah Dormann.
+\newblock Stable-baselines3: Reliable reinforcement learning implementations.
+\newblock {\em Journal of Machine Learning Research}, 22(268):1--8, 2021.
+
+\bibitem{taori2023alpaca}
+Rohan Taori, Ishaan Gulrajani, Tianyi Zhang, Yann Dubois, Xuechen Li, Carlos
+  Guestrin, Percy Liang, and Tatsunori~B Hashimoto.
+\newblock Alpaca: A strong, replicable instruction-following model.
+\newblock {\em Stanford Center for Research on Foundation Models}, 2023.
+
+\bibitem{cobbe2021gsm8k}
+Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Heewoo Jun, Lukasz
+  Kaiser, Matthias Plappert, Jerry Tworek, Jacob Hilton, Reiichiro Nakano,
+  et~al.
+\newblock Training verifiers to solve math word problems.
+\newblock {\em arXiv preprint arXiv:2110.14168}, 2021.
+
+\bibitem{chen2021humaneval}
+Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique~Ponde
+  de~Oliveira~Pinto, Jared Kaplan, Harri Edwards, Yuri Burda, Nicholas Joseph,
+  Greg Brockman, et~al.
+\newblock Evaluating large language models trained on code.
+\newblock {\em arXiv preprint arXiv:2107.03374}, 2021.
+
+\bibitem{zheng2023mtbench}
+Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, Siyuan Zhuang, Zhanghao Wu, Yonghao
+  Zhuang, Zi~Lin, Zhuohan Li, Dacheng Li, Eric Xing, et~al.
+\newblock Judging llm-as-a-judge with mt-bench and chatbot arena.
+\newblock {\em Advances in Neural Information Processing Systems},
+  36:46595--46623, 2023.
+
+\bibitem{kwiatkowski2019natural}
+Tom Kwiatkowski, Jennimaria Palomaki, Olivia Redfield, Michael Collins, Ankur
+  Parikh, Chris Alberti, Danielle Epstein, Illia Polosukhin, Jacob Devlin,
+  Kenton Lee, et~al.
+\newblock Natural questions: A benchmark for question answering research.
+\newblock {\em Transactions of the Association for Computational Linguistics},
+  7:453--466, 2019.
+
+\bibitem{hendrycks2020mmlu}
+Dan Hendrycks, Collin Burns, Steven Basart, Andy Zou, Mantas Mazeika, Dawn
+  Song, and Jacob Steinhardt.
+\newblock Measuring massive multitask language understanding.
+\newblock {\em arXiv preprint arXiv:2009.03300}, 2020.
+
+\bibitem{srivastava2023bbh}
+Aarohi Srivastava, Abhinav Rastogi, Abhishek Rao, Abu Awal~Md Shoeb, Aditya
+  Abid, Adam Fisch, Adam~R Brown, Adam Santoro, Aditya Gupta, Adri\`a
+  Garriga-Alonso, et~al.
+\newblock Beyond the imitation game: Quantifying and extrapolating the
+  capabilities of language models.
+\newblock {\em Transactions on Machine Learning Research}, 2023.
+
+\end{thebibliography}

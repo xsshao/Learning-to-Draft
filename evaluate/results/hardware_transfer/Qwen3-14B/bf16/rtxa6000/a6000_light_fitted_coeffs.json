@@ -1,0 +1,47 @@
+{
+  "coefficient_units": "baseline_token_equivalents",
+  "hardware_cost_coeffs": {
+    "draft": 0.0,
+    "verify": 0.005187778668306195,
+    "depth": 0.0,
+    "kv": 0.0,
+    "launch": 0.0011292872917775443,
+    "fixed": 1.3196570114328765
+  },
+  "hardware_cost_coeffs_string": "draft=0,verify=0.0051877787,depth=0,kv=0,launch=0.0011292873,fixed=1.319657",
+  "seconds_coeffs": {
+    "draft": 0.0,
+    "verify": 0.0002573011263028955,
+    "depth": 0.0,
+    "kv": 0.0,
+    "launch": 5.600988605567834e-05,
+    "fixed": 0.06545175827365331
+  },
+  "baseline_token_time_seconds": 0.04959755277819207,
+  "num_rows": 120,
+  "feature_order": [
+    "draft",
+    "verify",
+    "depth",
+    "kv",
+    "launch",
+    "fixed"
+  ],
+  "target_mode": "per_cycle",
+  "ridge_alpha": 1e-06,
+  "nonnegative": true,
+  "metrics": {
+    "weighted_rmse_seconds": 0.003284696084417816,
+    "weighted_mae_seconds": 0.00295679915859506,
+    "weighted_r2": 0.9791988912963768,
+    "target_mean_seconds": 0.08805610782373985
+  },
+  "grid_stats": {
+    "files_seen": 1,
+    "files_used": 1,
+    "datasets_used": {
+      "humaneval": 120
+    },
+    "rows": 120
+  }
+}

@@ -1,0 +1,136 @@
+Requirement already satisfied: pip in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (26.0.1)
+Requirement already satisfied: setuptools in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (82.0.1)
+Requirement already satisfied: wheel in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (0.47.0)
+Requirement already satisfied: packaging>=24.0 in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (from wheel) (26.0)
+missing_modules=
+Qwen3-32B benchmark configuration:
+  Base model:   Qwen/Qwen3-32B
+  EA model:     AngelSlim/Qwen3-32B_eagle3
+  Size model:   /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Depth model:  /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Datasets:     alpaca
+  Num samples:  1
+  Temperature:  0.0
+  Results dir:  /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu_smoke
+  8-bit load:   1
+  Device map:   auto
+  Warmup runs:  0
+==================================
+🚀 RL-Enhanced Inference Benchmark
+==================================
+Base Model:        Qwen/Qwen3-32B
+EA Model:          AngelSlim/Qwen3-32B_eagle3
+Size Model:        /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+Depth Model:       /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+Datasets:          alpaca
+Samples per DS:    1
+Output Directory:  /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu_smoke
+8-bit Loading:     1
+Device Map:        auto
+Warmup runs:       0
+==================================
+
+Starting benchmark...
+python /u/sx24/scratch/LTD_reproduce/evaluate/benchmark_rl_inference.py --base_model_path Qwen/Qwen3-32B --ea_model_path AngelSlim/Qwen3-32B_eagle3 --data_dir /u/sx24/scratch/LTD_reproduce/eagle/data --dataset_names alpaca --num_samples 1 --temperature 0.0 --output_dir /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu_smoke --device cuda --size_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip --depth_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip --load_in_8bit --device_map auto --warmup_runs 0 
+================================================================================
+🚀 RL-Enhanced Speculative Decoding Benchmark
+================================================================================
+
+📦 Loading models...
+  Base model: Qwen/Qwen3-32B
+  EA model: AngelSlim/Qwen3-32B_eagle3
+  Device: cuda
+  GPU: NVIDIA H100 80GB HBM3
+  CUDA_VISIBLE_DEVICES: '0,1'  |  torch.cuda.device_count(): 2
+  Loading size policy: /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Loading depth policy: /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Input device (embeddings / first stage): cuda:0
+
+================================================================================
+🔬 Starting benchmark...
+================================================================================
+{'base_model_path': 'Qwen/Qwen3-32B',
+ 'batch_size': 256,
+ 'cuda_visible_devices': '0,1',
+ 'dataset_names': ['alpaca'],
+ 'depth_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip',
+ 'device': 'cuda',
+ 'device_map': 'auto',
+ 'ea_model_path': 'AngelSlim/Qwen3-32B_eagle3',
+ 'gpu_name': 'NVIDIA H100 80GB HBM3',
+ 'input_device': 'cuda:0',
+ 'load_in_8bit': True,
+ 'num_samples': 1,
+ 'parallelism_note': 'HuggingFace accelerate device_map shards layers across '
+                     'GPUs (pipeline-style). This is not Megatron/vLLM tensor '
+                     'parallelism (no all-reduce matmul split).',
+ 'size_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip',
+ 'temperature': 0.0,
+ 'timestamp': '2026-04-28 02:42:45',
+ 'torch_cuda_device_count': 2,
+ 'warmup_runs': 0}
+
+📊 Dataset: alpaca
+--------------------------------------------------------------------------------
+✓ Loaded 1 samples from alpaca
+Evaluating alpaca 100% ━━━━━━━━━━━━━━━━━━━━━ 1/1  [ 0:01:23 < 0:00:00 , ? it/s ]
+
+✅ Results saved to /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu_smoke/benchmark_results_20260428_024409.json
+==============================================================================================================
+BENCHMARK RESULTS ANALYSIS
+==============================================================================================================
+
+Run Configuration:
+  Base model:    Qwen/Qwen3-32B
+  EA model:      AngelSlim/Qwen3-32B_eagle3
+  Size policy:   /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Depth policy:  /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Datasets:      alpaca
+  Num samples:   1
+  Batch size:    256
+  Temperature:   0.0
+  Device:        cuda
+  Timestamp:     2026-04-28 02:42:45
+
+                                               Dataset: alpaca                                                
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      49.5305      5.19           —            —          —            —
+eagle3               257.0      17.9632      14.31          3.43         —          —            2.76x
+eagle3_rl            256.0      16.2517      15.75          3.88         150.0      4.85         3.04x
+
+==============================================================================================================
+Analysis complete!
+
+✅ Benchmark complete!
+Results saved to: /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu_smoke
+Analyzing /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu_smoke/benchmark_results_20260428_024409.json
+Loaded benchmark results from: /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu_smoke/benchmark_results_20260428_024409.json
+==============================================================================================================
+BENCHMARK RESULTS ANALYSIS
+==============================================================================================================
+
+Run Configuration:
+  Base model:    Qwen/Qwen3-32B
+  EA model:      AngelSlim/Qwen3-32B_eagle3
+  Size policy:   /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Depth policy:  /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Datasets:      alpaca
+  Num samples:   1
+  Batch size:    256
+  Temperature:   0.0
+  Device:        cuda
+  Timestamp:     2026-04-28 02:42:45
+
+                                               Dataset: alpaca                                                
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      49.5305      5.19           —            —          —            —
+eagle3               257.0      17.9632      14.31          3.43         —          —            2.76x
+eagle3_rl            256.0      16.2517      15.75          3.88         150.0      4.85         3.04x
+
+==============================================================================================================
+Analysis complete!
+Chart saved to /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu_smoke/benchmark_results_20260428_024409_charts.png

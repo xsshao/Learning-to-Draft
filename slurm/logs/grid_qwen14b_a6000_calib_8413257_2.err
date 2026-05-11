@@ -1,0 +1,6 @@
+/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/transformers/utils/hub.py:111: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/transformers/utils/hub.py:111: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+Loading checkpoint shards:   0%|          | 0/8 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 1/8 [00:02<00:16,  2.38s/it]Loading checkpoint shards:  25%|██▌       | 2/8 [00:05<00:15,  2.54s/it]Loading checkpoint shards:  38%|███▊      | 3/8 [00:07<00:11,  2.32s/it]Loading checkpoint shards:  50%|█████     | 4/8 [00:09<00:09,  2.42s/it]Loading checkpoint shards:  62%|██████▎   | 5/8 [00:12<00:07,  2.47s/it]Loading checkpoint shards:  75%|███████▌  | 6/8 [00:14<00:05,  2.50s/it]Loading checkpoint shards:  88%|████████▊ | 7/8 [00:17<00:02,  2.47s/it]Loading checkpoint shards: 100%|██████████| 8/8 [00:18<00:00,  2.11s/it]Loading checkpoint shards: 100%|██████████| 8/8 [00:18<00:00,  2.32s/it]
+[2026-05-06T18:57:08.132] error: *** JOB 8413269 ON ccc0324 CANCELLED AT 2026-05-06T18:57:08 DUE TO TIME LIMIT ***

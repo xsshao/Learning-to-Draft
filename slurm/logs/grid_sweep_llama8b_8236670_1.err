@@ -1,0 +1,66 @@
+/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/transformers/utils/hub.py:111: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/transformers/utils/hub.py:111: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+Traceback (most recent call last):
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/huggingface_hub/utils/_http.py", line 403, in hf_raise_for_status
+    response.raise_for_status()
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/requests/models.py", line 1026, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 401 Client Error: Unauthorized for url: https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/resolve/main/config.json
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/transformers/utils/hub.py", line 470, in cached_files
+    hf_hub_download(
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/huggingface_hub/utils/_validators.py", line 114, in _inner_fn
+    return fn(*args, **kwargs)
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/huggingface_hub/file_download.py", line 1014, in hf_hub_download
+    return _hf_hub_download_to_cache_dir(
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/huggingface_hub/file_download.py", line 1121, in _hf_hub_download_to_cache_dir
+    _raise_on_head_call_error(head_call_error, force_download, local_files_only)
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/huggingface_hub/file_download.py", line 1662, in _raise_on_head_call_error
+    raise head_call_error
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/huggingface_hub/file_download.py", line 1550, in _get_metadata_or_catch_error
+    metadata = get_hf_file_metadata(
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/huggingface_hub/utils/_validators.py", line 114, in _inner_fn
+    return fn(*args, **kwargs)
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/huggingface_hub/file_download.py", line 1467, in get_hf_file_metadata
+    r = _request_wrapper(
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/huggingface_hub/file_download.py", line 283, in _request_wrapper
+    response = _request_wrapper(
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/huggingface_hub/file_download.py", line 307, in _request_wrapper
+    hf_raise_for_status(response)
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/huggingface_hub/utils/_http.py", line 420, in hf_raise_for_status
+    raise _format(GatedRepoError, message, response) from e
+huggingface_hub.errors.GatedRepoError: 401 Client Error. (Request ID: Root=1-69ec6cc1-310669836d8a625128c8a2f8;5af636b7-456d-4019-a5bf-39ccd0afda25)
+
+Cannot access gated repo for url https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/resolve/main/config.json.
+Access to model meta-llama/Llama-3.1-8B-Instruct is restricted. You must have access to it and be authenticated to access it. Please log in.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/u/sx24/scratch/LTD_reproduce/evaluate/benchmark_grid_sweep.py", line 233, in <module>
+    main()
+  File "/u/sx24/scratch/LTD_reproduce/evaluate/benchmark_grid_sweep.py", line 131, in main
+    model = EaModel.from_pretrained(**model_kwargs)
+  File "/u/sx24/scratch/LTD_reproduce/eagle/model/ea_model.py", line 409, in from_pretrained
+    Type = AutoConfig.from_pretrained(base_model_path).architectures[0]
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/transformers/models/auto/configuration_auto.py", line 1197, in from_pretrained
+    config_dict, unused_kwargs = PretrainedConfig.get_config_dict(pretrained_model_name_or_path, **kwargs)
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/transformers/configuration_utils.py", line 608, in get_config_dict
+    config_dict, kwargs = cls._get_config_dict(pretrained_model_name_or_path, **kwargs)
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/transformers/configuration_utils.py", line 667, in _get_config_dict
+    resolved_config_file = cached_file(
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/transformers/utils/hub.py", line 312, in cached_file
+    file = cached_files(path_or_repo_id=path_or_repo_id, filenames=[filename], **kwargs)
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/transformers/utils/hub.py", line 533, in cached_files
+    raise OSError(
+OSError: You are trying to access a gated repo.
+Make sure to have access to it at https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct.
+401 Client Error. (Request ID: Root=1-69ec6cc1-310669836d8a625128c8a2f8;5af636b7-456d-4019-a5bf-39ccd0afda25)
+
+Cannot access gated repo for url https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/resolve/main/config.json.
+Access to model meta-llama/Llama-3.1-8B-Instruct is restricted. You must have access to it and be authenticated to access it. Please log in.

@@ -1,0 +1,30 @@
+/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/transformers/utils/hub.py:111: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/transformers/utils/hub.py:111: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+wandb: WARNING The anonymous setting has no effect and will be removed in a future version.
+Loading checkpoint shards:   0%|          | 0/8 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 1/8 [00:01<00:13,  1.99s/it]Loading checkpoint shards:  25%|██▌       | 2/8 [00:03<00:12,  2.00s/it]Loading checkpoint shards:  38%|███▊      | 3/8 [00:05<00:09,  1.99s/it]Loading checkpoint shards:  50%|█████     | 4/8 [00:07<00:08,  2.00s/it]Loading checkpoint shards:  62%|██████▎   | 5/8 [00:10<00:06,  2.01s/it]Loading checkpoint shards:  75%|███████▌  | 6/8 [00:12<00:04,  2.01s/it]Loading checkpoint shards:  88%|████████▊ | 7/8 [00:14<00:02,  2.05s/it]Loading checkpoint shards: 100%|██████████| 8/8 [00:15<00:00,  1.72s/it]Loading checkpoint shards: 100%|██████████| 8/8 [00:15<00:00,  1.90s/it]
+/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/stable_baselines3/common/on_policy_algorithm.py:150: UserWarning: You are trying to run PPO on the GPU, but it is primarily intended to run on the CPU when not using a CNN policy (you are using ActorCriticPolicy which should be a MlpPolicy). See https://github.com/DLR-RM/stable-baselines3/issues/1245 for more info. You can pass `device='cpu'` or `export CUDA_VISIBLE_DEVICES=` to force using the CPU.Note: The model will train, but the GPU utilization will be poor and the training might take longer than on CPU.
+  warnings.warn(
+Traceback (most recent call last):
+  File "/usr/lib64/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/usr/lib64/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/scratch/sx24/LTD_reproduce/rl/rl_total.py", line 731, in <module>
+    model_rl.learn(
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/stable_baselines3/ppo/ppo.py", line 311, in learn
+    return super().learn(
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/stable_baselines3/common/on_policy_algorithm.py", line 311, in learn
+    total_timesteps, callback = self._setup_learn(
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/stable_baselines3/common/base_class.py", line 423, in _setup_learn
+    self._last_obs = self.env.reset()  # type: ignore[assignment]
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/stable_baselines3/common/vec_env/dummy_vec_env.py", line 78, in reset
+    obs, self.reset_infos[env_idx] = self.envs[env_idx].reset(seed=self._seeds[env_idx], **maybe_options)
+  File "/u/sx24/.venvs/ltd_vicuna/lib64/python3.9/site-packages/stable_baselines3/common/monitor.py", line 83, in reset
+    return self.env.reset(**kwargs)
+  File "/scratch/sx24/LTD_reproduce/rl/rl_total.py", line 484, in reset
+    return self._get_obs(), self._get_info()
+  File "/scratch/sx24/LTD_reproduce/rl/rl_total.py", line 265, in _get_obs
+    last_hidden_state_np = last_hidden_state.cpu().detach().numpy().flatten()
+TypeError: Got unsupported ScalarType BFloat16

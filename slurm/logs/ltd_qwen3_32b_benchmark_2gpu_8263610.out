@@ -1,0 +1,120 @@
+Requirement already satisfied: pip in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (26.0.1)
+Requirement already satisfied: setuptools in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (82.0.1)
+Requirement already satisfied: wheel in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (0.47.0)
+Requirement already satisfied: packaging>=24.0 in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (from wheel) (26.0)
+missing_modules=
+Qwen3-32B benchmark configuration:
+  Base model:   Qwen/Qwen3-32B
+  EA model:     AngelSlim/Qwen3-32B_eagle3
+  Size model:   /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Depth model:  /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Datasets:     alpaca bbh gsm8k humaneval leetcode math mmlu mt_bench qa sum theoremqa
+  Num samples:  20
+  Temperature:  0.0
+  Results dir:  /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu
+  8-bit load:   1
+  Device map:   auto
+  Warmup runs:  3
+==================================
+🚀 RL-Enhanced Inference Benchmark
+==================================
+Base Model:        Qwen/Qwen3-32B
+EA Model:          AngelSlim/Qwen3-32B_eagle3
+Size Model:        /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+Depth Model:       /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+Datasets:          alpaca bbh gsm8k humaneval leetcode math mmlu mt_bench qa sum theoremqa
+Samples per DS:    20
+Output Directory:  /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu
+8-bit Loading:     1
+Device Map:        auto
+Warmup runs:       3
+==================================
+
+Starting benchmark...
+python /u/sx24/scratch/LTD_reproduce/evaluate/benchmark_rl_inference.py --base_model_path Qwen/Qwen3-32B --ea_model_path AngelSlim/Qwen3-32B_eagle3 --data_dir /u/sx24/scratch/LTD_reproduce/eagle/data --dataset_names alpaca bbh gsm8k humaneval leetcode math mmlu mt_bench qa sum theoremqa --num_samples 20 --temperature 0.0 --output_dir /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B_2gpu --device cuda --size_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip --depth_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip --load_in_8bit --device_map auto --warmup_runs 3 
+================================================================================
+🚀 RL-Enhanced Speculative Decoding Benchmark
+================================================================================
+
+📦 Loading models...
+  Base model: Qwen/Qwen3-32B
+  EA model: AngelSlim/Qwen3-32B_eagle3
+  Device: cuda
+  GPU: NVIDIA H100 80GB HBM3
+  CUDA_VISIBLE_DEVICES: '0,1'  |  torch.cuda.device_count(): 2
+  Loading size policy: /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Loading depth policy: /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Input device (embeddings / first stage): cuda:0
+
+================================================================================
+🔬 Starting benchmark...
+================================================================================
+{'base_model_path': 'Qwen/Qwen3-32B',
+ 'batch_size': 256,
+ 'cuda_visible_devices': '0,1',
+ 'dataset_names': ['alpaca',
+                   'bbh',
+                   'gsm8k',
+                   'humaneval',
+                   'leetcode',
+                   'math',
+                   'mmlu',
+                   'mt_bench',
+                   'qa',
+                   'sum',
+                   'theoremqa'],
+ 'depth_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip',
+ 'device': 'cuda',
+ 'device_map': 'auto',
+ 'ea_model_path': 'AngelSlim/Qwen3-32B_eagle3',
+ 'gpu_name': 'NVIDIA H100 80GB HBM3',
+ 'input_device': 'cuda:0',
+ 'load_in_8bit': True,
+ 'num_samples': 20,
+ 'parallelism_note': 'HuggingFace accelerate device_map shards layers across '
+                     'GPUs (pipeline-style). This is not Megatron/vLLM tensor '
+                     'parallelism (no all-reduce matmul split).',
+ 'size_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip',
+ 'temperature': 0.0,
+ 'timestamp': '2026-04-27 22:43:02',
+ 'torch_cuda_device_count': 2,
+ 'warmup_runs': 3}
+
+📊 Dataset: alpaca
+--------------------------------------------------------------------------------
+✓ Loaded 20 samples from alpaca
+
+  Warmup (3 full passes on first prompt, untimed)...
+    Warmup Eagle3+RL skip: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    Warmup Eagle3+RL skip: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    Warmup Eagle3+RL skip: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 0: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 1: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 2: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 3: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 4: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 5: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 6: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 7: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 8: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 9: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 10: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 11: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 12: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 13: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 14: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 15: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 16: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 17: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 18: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 19: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+Evaluating alpaca 100% ━━━━━━━━━━━━━━━━━━━ 20/20  [ 0:20:47 < 0:00:00 , ? it/s ]
+
+📊 Dataset: bbh
+--------------------------------------------------------------------------------
+✓ Loaded 20 samples from bbh
+    ❌ Eagle3+RL error on sample 0: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 1: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 2: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 3: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)
+    ❌ Eagle3+RL error on sample 4: indices should be either on cpu or on the same device as the indexed tensor (cuda:1)

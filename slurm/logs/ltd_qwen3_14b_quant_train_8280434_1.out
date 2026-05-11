@@ -1,0 +1,26 @@
+Training Qwen3-14B size policy under bf16
+Requirement already satisfied: pip in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (26.0.1)
+Requirement already satisfied: setuptools in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (82.0.1)
+Requirement already satisfied: wheel in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (0.47.0)
+Requirement already satisfied: packaging>=24.0 in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (from wheel) (26.0)
+missing_modules=
+Qwen3 training configuration:
+  Base model: Qwen/Qwen3-14B
+  EA model:   AngelSlim/Qwen3-14B_eagle3
+  Data dir:   ./eagle/data
+  Dataset:    humaneval
+  Save path:  /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer
+  Quantization: bf16
+  Device map: auto
+  Checkpoint variant: bf16
+  Auto resume: 1
+  Resume checkpoint: none
+  Checkpoint freq: 5000
+  HF cache:   /u/sx24/scratch/LTD_reproduce/.cache/huggingface/hub
+Quantization config: {'quantization': 'bf16', 'torch_dtype': 'bfloat16', 'load_in_8bit': False, 'load_in_4bit': False, 'bnb_4bit_compute_dtype': '', 'bnb_4bit_quant_type': '', 'bnb_4bit_use_double_quant': False, 'device_map': 'auto'}
+Datasets used for RL training: ['humaneval']
+Using cuda device
+Wrapping the env with a `Monitor` wrapper
+Wrapping the env in a DummyVecEnv.
+
+Starting RL training with single action (total_tokens)...

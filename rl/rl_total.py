@@ -29,6 +29,13 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.callbacks import CallbackList
 import argparse
 from transformers import AutoModel, AutoTokenizer
+from fastchat.model import get_conversation_template
+from eagle.model.quantization import (
+    add_quantization_args,
+    apply_quantization_config,
+    quantization_metadata,
+    should_move_model_to_device,
+)
 
 parser = argparse.ArgumentParser(description="hello rl")
 
@@ -80,12 +87,52 @@ parser.add_argument("--dataset_train", type=str, default="humaneval")
 parser.add_argument('--pi_arch', type=int, nargs='+', default=[512, 256], help="Policy network (pi) architecture. Example: --pi_arch 512 256")
 parser.add_argument('--vf_arch', type=int, nargs='+', default=[1024, 512], help="Value network (vf) architecture. Example: --vf_arch 1024 512")
 parser.add_argument("--use_dyn_depth", action="store_true")
+parser.add_argument("--device_map", type=str, default="", help="Optional Hugging Face device_map value, such as 'auto'.")
+parser.add_argument("--checkpoint_variant", type=str, default="", help="Optional checkpoint subdirectory, e.g. bf16/int8/int4.")
+add_quantization_args(parser)
 
 args=parser.parse_args()
 
+OFFICIAL_SYSTEM_PROMPT = (
+    "You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  "
+    "Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. "
+    "Please ensure that your responses are socially unbiased and positive in nature.\n\n"
+    "If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. "
+    "If you don't know the answer to a question, please don't share false information."
+)
+
 _model_name = os.path.basename(args.base_model_path.rstrip("/"))
-_ckpt_dir = os.path.join(args.save_path, _model_name, "size")
+_ckpt_parts = [args.save_path, _model_name]
+if args.checkpoint_variant:
+    _ckpt_parts.append(args.checkpoint_variant)
+_ckpt_parts.append("size")
+_ckpt_dir = os.path.join(*_ckpt_parts)
 os.makedirs(_ckpt_dir, exist_ok=True)
+
+
+def build_training_prompt(tokenizer, user_prompt: str, base_model_path: str) -> str:
+    messages = [
+        {"role": "system", "content": OFFICIAL_SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt},
+    ]
+    try:
+        return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    except Exception:
+        pass
+
+    if "vicuna" in base_model_path.lower():
+        conv = get_conversation_template("vicuna")
+        if hasattr(conv, "set_system_message"):
+            conv.set_system_message(OFFICIAL_SYSTEM_PROMPT)
+        elif hasattr(conv, "system_message"):
+            conv.system_message = OFFICIAL_SYSTEM_PROMPT
+        else:
+            user_prompt = OFFICIAL_SYSTEM_PROMPT + "\n\n" + user_prompt
+        conv.append_message(conv.roles[0], user_prompt)
+        conv.append_message(conv.roles[1], None)
+        return conv.get_prompt()
+
+    return f"{OFFICIAL_SYSTEM_PROMPT}\n\nUser: {user_prompt}\nAssistant:"
 
 # Dummy Adawm Schedule for completeness
 def adawm_schedule(initial_lr: float, warmup_steps: int, total_timesteps: int):
@@ -103,11 +150,14 @@ class CustomTensorboardCallback(BaseCallback):
     一个自定义的回调函数，用于在每个步骤中直接向 Weights & Biases (wandb) 记录详细信息。
     同时也保留了按频率保存模型的功能。
     """
-    def __init__(self, verbose=0, save_freq=args.eval_freq, save_path=_ckpt_dir):
+    def __init__(self, verbose=0, save_freq=args.eval_freq, save_path=_ckpt_dir, initial_timestep=0):
         super().__init__(verbose)
         self.save_freq = save_freq
         self.save_path = save_path
-        self.last_saved_timestep = 0
+        if self.save_freq > 0:
+            self.last_saved_timestep = initial_timestep - (initial_timestep % self.save_freq)
+        else:
+            self.last_saved_timestep = initial_timestep
 
     def _on_step(self) -> bool:
         if "infos" in self.locals and self.locals["infos"]:
@@ -144,9 +194,10 @@ def load_rl_depth_model(model_path):
     if not model_path:
         raise ValueError("Error: --depth_model path must be provided when --use_dyn_depth is true.")
     print(f"Loading RL depth model from: {model_path}")
-    model = PPO.load(model_path, device="cuda")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = PPO.load(model_path, device=device)
     policy = model.policy
-    policy.to("cuda")
+    policy.to(device)
     policy.eval()
     return policy
 
@@ -189,7 +240,7 @@ class SpeculativeDecodingEnv(gym.Env):
         position_ids=self.current_input_ids.shape[1]/1000.0
 
         if self.cu_scores_for_obs!=None:
-            last_hidden_state_np = self.cu_scores_for_obs.cpu().detach().numpy().flatten()
+            last_hidden_state_np = self.cu_scores_for_obs.float().cpu().detach().numpy().flatten()
             obs[offset : offset + len(last_hidden_state_np)] = last_hidden_state_np
             
         offset+=100
@@ -211,9 +262,9 @@ class SpeculativeDecodingEnv(gym.Env):
         if last_hidden_state.ndim == 0:
             last_hidden_state = last_hidden_state.unsqueeze(0)
 
-        last_hidden_state_np = last_hidden_state.cpu().detach().numpy().flatten()
+        last_hidden_state_np = last_hidden_state.float().cpu().detach().numpy().flatten()
 
-        scores_np = scores.cpu().detach().numpy().flatten()
+        scores_np = scores.float().cpu().detach().numpy().flatten()
         obs[offset:offset + len(scores_np)] = scores_np
         offset += 1210
         
@@ -353,7 +404,8 @@ class SpeculativeDecodingEnv(gym.Env):
             self.cnet_step += 1
             if self.depth_model!=None and _!=self.random_depth_this_step-1 and _%3==2:
                 with torch.inference_mode():
-                    depth_tensor=torch.tensor(self._get_obs_depth(),device="cuda")
+                    depth_device = next(self.depth_model.parameters()).device
+                    depth_tensor=torch.tensor(self._get_obs_depth(), device=depth_device)
                     action_depth=self.depth_model._predict(depth_tensor.unsqueeze(0),deterministic=True)[0]
                     if action_depth==0:
                         break
@@ -564,17 +616,22 @@ if __name__ == '__main__':
         save_code=True,                     
     )
 
-    model = EaModel.from_pretrained(
+    model_kwargs = dict(
         base_model_path=args.base_model_path,
         ea_model_path=args.ea_model_path,
-        torch_dtype=torch.float16,
         low_cpu_mem_usage=True,
         depth=5,
         top_k=10,
         total_token=60,
         use_eagle3=True,
         use_dyn_len=False,
-    ).to("cuda")
+    )
+    quantization = apply_quantization_config(model_kwargs, args)
+    print(f"Quantization config: {quantization_metadata(args, quantization)}")
+
+    model = EaModel.from_pretrained(**model_kwargs)
+    if should_move_model_to_device(quantization, args.device_map):
+        model = model.to("cuda")
     model.eval()
     tokenizer = model.get_tokenizer()
 
@@ -599,12 +656,11 @@ if __name__ == '__main__':
         with open(dataset_path, "r") as f:
             for line in f:
                 data = json.loads(line)
-                messages = [
-                    {"role": "system",
-                    "content": "You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.\n\nIf a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information."},
-                    {"role": "user", "content": data["turns"][0]}
-                ]
-                prompt_start = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                prompt_start = build_training_prompt(
+                    tokenizer,
+                    data["turns"][0],
+                    args.base_model_path,
+                )
                 input_ids = tokenizer.encode(prompt_start, add_special_tokens=False, return_tensors="pt")
                 if input_ids.shape[1] <= 1748:
                     input_ids_list.append(input_ids)
@@ -625,6 +681,7 @@ if __name__ == '__main__':
     )
     
     checkpoint_path = args.rl_checkpoint_path
+    resume_training = bool(checkpoint_path and os.path.exists(checkpoint_path))
     if checkpoint_path and os.path.exists(checkpoint_path):
         print(f"Loading checkpoint from: {checkpoint_path}")
         model_rl = PPO.load(
@@ -650,20 +707,38 @@ if __name__ == '__main__':
             ent_coef=args.ent_coef, 
             learning_rate=learning_rate_schedule,
         )
-        
-    custom_tensorboard_callback = CustomTensorboardCallback(save_freq=args.eval_freq)
+
+    completed_timesteps = model_rl.num_timesteps if resume_training else 0
+    remaining_timesteps = max(args.total_timesteps - completed_timesteps, 0)
+    if resume_training:
+        print(
+            f"Resuming from timestep {completed_timesteps} "
+            f"with {remaining_timesteps} timesteps remaining."
+        )
+
+    custom_tensorboard_callback = CustomTensorboardCallback(
+        save_freq=args.eval_freq,
+        initial_timestep=completed_timesteps,
+    )
     wandb_callback = WandbCallback(
         gradient_save_freq=0,
         verbose=2,
     )
     callback_list = CallbackList([custom_tensorboard_callback, wandb_callback])
     
-    print("\nStarting RL training with single action (total_tokens)...")
-    model_rl.learn(
-        total_timesteps=args.total_timesteps, 
-        progress_bar=True, 
-        callback=callback_list
-    )
+    if remaining_timesteps > 0:
+        print("\nStarting RL training with single action (total_tokens)...")
+        model_rl.learn(
+            total_timesteps=remaining_timesteps,
+            progress_bar=True,
+            callback=callback_list,
+            reset_num_timesteps=not resume_training,
+        )
+    else:
+        print(
+            f"\nCheckpoint already reached the target of {args.total_timesteps} timesteps. "
+            "Skipping additional training."
+        )
     print("RL training finished.")
     run.finish()
     model_rl.save(os.path.join(_ckpt_dir, "final"))

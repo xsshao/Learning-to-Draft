@@ -1,0 +1,126 @@
+Requirement already satisfied: pip in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (26.0.1)
+Requirement already satisfied: setuptools in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (82.0.1)
+Requirement already satisfied: wheel in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (0.46.3)
+Requirement already satisfied: packaging>=24.0 in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (from wheel) (26.0)
+missing_modules=
+Qwen3-32B benchmark configuration:
+  Base model:   Qwen/Qwen3-32B
+  EA model:     AngelSlim/Qwen3-32B_eagle3
+  Size model:   /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Depth model:  /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Datasets:     qa
+  Num samples:  20
+  Temperature:  0.0
+  Results dir:  /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/qa
+  8-bit load:   1
+  Device map:   auto
+  Array task:   9/11
+==================================
+🚀 RL-Enhanced Inference Benchmark
+==================================
+Base Model:        Qwen/Qwen3-32B
+EA Model:          AngelSlim/Qwen3-32B_eagle3
+Size Model:        /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+Depth Model:       /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+Datasets:          qa
+Samples per DS:    20
+Output Directory:  /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/qa
+8-bit Loading:     1
+Device Map:        auto
+==================================
+
+Starting benchmark...
+python /u/sx24/scratch/LTD_reproduce/evaluate/benchmark_rl_inference.py --base_model_path Qwen/Qwen3-32B --ea_model_path AngelSlim/Qwen3-32B_eagle3 --data_dir /u/sx24/scratch/LTD_reproduce/eagle/data --dataset_names qa --num_samples 20 --temperature 0.0 --output_dir /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/qa --device cuda --size_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip --depth_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip --load_in_8bit --device_map auto 
+================================================================================
+🚀 RL-Enhanced Speculative Decoding Benchmark
+================================================================================
+
+📦 Loading models...
+  Base model: Qwen/Qwen3-32B
+  EA model: AngelSlim/Qwen3-32B_eagle3
+  Device: cuda
+  GPU: NVIDIA H100 80GB HBM3
+  Loading size policy: /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Loading depth policy: /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+
+================================================================================
+🔬 Starting benchmark...
+================================================================================
+{'base_model_path': 'Qwen/Qwen3-32B',
+ 'batch_size': 256,
+ 'dataset_names': ['qa'],
+ 'depth_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip',
+ 'device': 'cuda',
+ 'device_map': 'auto',
+ 'ea_model_path': 'AngelSlim/Qwen3-32B_eagle3',
+ 'gpu_name': 'NVIDIA H100 80GB HBM3',
+ 'load_in_8bit': True,
+ 'num_samples': 20,
+ 'size_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip',
+ 'temperature': 0.0,
+ 'timestamp': '2026-04-07 06:23:21'}
+
+📊 Dataset: qa
+--------------------------------------------------------------------------------
+✓ Loaded 20 samples from qa
+Evaluating qa 100% ━━━━━━━━━━━━━━━━━━━━━━━ 20/20  [ 0:27:23 < 0:00:00 , ? it/s ]
+
+✅ Results saved to /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/qa/benchmark_results_20260407_065044.json
+==============================================================================================================
+BENCHMARK RESULTS ANALYSIS
+==============================================================================================================
+
+Run Configuration:
+  Base model:    Qwen/Qwen3-32B
+  EA model:      AngelSlim/Qwen3-32B_eagle3
+  Size policy:   /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Depth policy:  /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Datasets:      qa
+  Num samples:   20
+  Batch size:    256
+  Temperature:   0.0
+  Device:        cuda
+  Timestamp:     2026-04-07 06:23:21
+
+                                                 Dataset: qa                                                  
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      46.2741      5.55           —            —          —            —
+eagle3               258.4      18.5708      14.10          3.14         —          —            2.54x
+eagle3_rl            257.7      17.3151      15.03          3.40         150.0      4.87         2.71x
+
+==============================================================================================================
+Analysis complete!
+
+✅ Benchmark complete!
+Results saved to: /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/qa
+Analyzing /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/qa/benchmark_results_20260407_065044.json
+Loaded benchmark results from: /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/qa/benchmark_results_20260407_065044.json
+==============================================================================================================
+BENCHMARK RESULTS ANALYSIS
+==============================================================================================================
+
+Run Configuration:
+  Base model:    Qwen/Qwen3-32B
+  EA model:      AngelSlim/Qwen3-32B_eagle3
+  Size policy:   /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/size/final.zip
+  Depth policy:  /u/sx24/scratch/LTD_reproduce/checkpoints/Qwen3-32B/depth/final.zip
+  Datasets:      qa
+  Num samples:   20
+  Batch size:    256
+  Temperature:   0.0
+  Device:        cuda
+  Timestamp:     2026-04-07 06:23:21
+
+                                                 Dataset: qa                                                  
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      46.2741      5.55           —            —          —            —
+eagle3               258.4      18.5708      14.10          3.14         —          —            2.54x
+eagle3_rl            257.7      17.3151      15.03          3.40         150.0      4.87         2.71x
+
+==============================================================================================================
+Analysis complete!
+Chart saved to /u/sx24/scratch/LTD_reproduce/evaluate/results/Qwen3-32B/qa/benchmark_results_20260407_065044_charts.png

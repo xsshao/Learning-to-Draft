@@ -1,0 +1,408 @@
+Benchmarking int4 policy across bf16 int8 int4
+Requirement already satisfied: pip in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (26.0.1)
+Requirement already satisfied: setuptools in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (82.0.1)
+Requirement already satisfied: wheel in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (0.47.0)
+Requirement already satisfied: packaging>=24.0 in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (from wheel) (26.0)
+missing_modules=
+
+Quantization transfer benchmark:
+  Model:             Qwen/Qwen3-14B
+  EA model:          AngelSlim/Qwen3-14B_eagle3
+  Policy variant:    int4
+  Eval quantization: bf16
+  Results:           /u/sx24/scratch/LTD_reproduce/evaluate/results/quant_transfer/Qwen3-14B/int4_policy/bf16
+==================================
+🚀 RL-Enhanced Inference Benchmark
+==================================
+Base Model:        Qwen/Qwen3-14B
+EA Model:          AngelSlim/Qwen3-14B_eagle3
+Size Model:        /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip
+Depth Model:       /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip
+Datasets:          humaneval alpaca gsm8k mt_bench
+Samples per DS:    50
+Output Directory:  /u/sx24/scratch/LTD_reproduce/evaluate/results/quant_transfer/Qwen3-14B/int4_policy/bf16
+Quantization:      bf16
+8-bit Alias Used:  0
+Device Map:        auto
+Warmup runs:       3
+Experiment label:  '(none)'
+Policy label:      '(none)'
+Policy train GPU:  '(none)'
+Benchmark GPU tag: '(none)'
+==================================
+
+Starting benchmark...
+python /u/sx24/scratch/LTD_reproduce/evaluate/benchmark_rl_inference.py --base_model_path Qwen/Qwen3-14B --ea_model_path AngelSlim/Qwen3-14B_eagle3 --data_dir /u/sx24/scratch/LTD_reproduce/eagle/data --dataset_names humaneval alpaca gsm8k mt_bench --num_samples 50 --temperature 0.0 --output_dir /u/sx24/scratch/LTD_reproduce/evaluate/results/quant_transfer/Qwen3-14B/int4_policy/bf16 --device cuda --quantization bf16 --size_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip --depth_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip --device_map auto --warmup_runs 3 
+================================================================================
+🚀 RL-Enhanced Speculative Decoding Benchmark
+================================================================================
+
+📦 Loading models...
+  Base model: Qwen/Qwen3-14B
+  EA model: AngelSlim/Qwen3-14B_eagle3
+  Device: cuda
+  GPU: NVIDIA H100 80GB HBM3
+  CUDA_VISIBLE_DEVICES: '0'  |  torch.cuda.device_count(): 1
+  Quantization: bf16
+  Effective device_map: auto
+  Loading size policy: /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip
+  Loading depth policy: /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip
+  Input device (embeddings / first stage): cuda:0
+
+================================================================================
+🔬 Starting benchmark...
+================================================================================
+{'base_model_path': 'Qwen/Qwen3-14B',
+ 'batch_size': 256,
+ 'benchmark_gpu_tag': '',
+ 'bnb_4bit_compute_dtype': '',
+ 'bnb_4bit_quant_type': '',
+ 'bnb_4bit_use_double_quant': False,
+ 'cuda_visible_devices': '0',
+ 'dataset_names': ['humaneval', 'alpaca', 'gsm8k', 'mt_bench'],
+ 'depth_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip',
+ 'device': 'cuda',
+ 'device_map': 'auto',
+ 'ea_model_path': 'AngelSlim/Qwen3-14B_eagle3',
+ 'experiment_label': '',
+ 'gpu_name': 'NVIDIA H100 80GB HBM3',
+ 'input_device': 'cuda:0',
+ 'load_in_4bit': False,
+ 'load_in_8bit': False,
+ 'num_samples': 50,
+ 'parallelism_note': 'HuggingFace accelerate device_map shards layers across '
+                     'GPUs (pipeline-style). This is not Megatron/vLLM tensor '
+                     'parallelism (no all-reduce matmul split).',
+ 'policy_label': '',
+ 'policy_train_gpu': '',
+ 'quantization': 'bf16',
+ 'size_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip',
+ 'temperature': 0.0,
+ 'timestamp': '2026-05-02 12:19:36',
+ 'torch_cuda_device_count': 1,
+ 'torch_dtype': 'bfloat16',
+ 'warmup_runs': 3}
+
+📊 Dataset: humaneval
+--------------------------------------------------------------------------------
+✓ Loaded 50 samples from humaneval
+
+  Warmup (3 full passes on first prompt, untimed)...
+Evaluating humaneval 100% ━━━━━━━━━━━━━━━━ 50/50  [ 0:11:53 < 0:00:00 , 0 it/s ]
+
+📊 Dataset: alpaca
+--------------------------------------------------------------------------------
+✓ Loaded 50 samples from alpaca
+Evaluating alpaca 100% ━━━━━━━━━━━━━━━━━━━ 50/50  [ 0:11:04 < 0:00:00 , 0 it/s ]
+
+📊 Dataset: gsm8k
+--------------------------------------------------------------------------------
+✓ Loaded 50 samples from gsm8k
+Evaluating gsm8k 100% ━━━━━━━━━━━━━━━━━━━━ 50/50  [ 0:11:25 < 0:00:00 , 0 it/s ]
+
+📊 Dataset: mt_bench
+--------------------------------------------------------------------------------
+✓ Loaded 50 samples from mt_bench
+Evaluating mt_bench 100% ━━━━━━━━━━━━━━━━━ 50/50  [ 0:11:59 < 0:00:00 , 0 it/s ]
+
+✅ Results saved to /u/sx24/scratch/LTD_reproduce/evaluate/results/quant_transfer/Qwen3-14B/int4_policy/bf16/benchmark_results_20260502_130641.json
+==============================================================================================================
+BENCHMARK RESULTS ANALYSIS
+==============================================================================================================
+
+Run Configuration:
+  Base model:    Qwen/Qwen3-14B
+  EA model:      AngelSlim/Qwen3-14B_eagle3
+  Size policy:   /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip
+  Depth policy:  /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip
+  Datasets:      humaneval, alpaca, gsm8k, mt_bench
+  Num samples:   50
+  Batch size:    256
+  Temperature:   0.0
+  Device:        cuda
+  Quantization:  bf16
+  Timestamp:     2026-05-02 12:19:36
+
+                                              Dataset: humaneval                                              
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      8.2485       31.16          —            —          —            —
+eagle3               259.0      3.2127       81.35          3.88         —          —            2.61x
+eagle3_rl            258.0      2.8046       92.54          4.14         120.0      4.56         2.97x
+
+
+                                               Dataset: alpaca                                                
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             232.2      7.4339       31.24          —            —          —            —
+eagle3               234.9      3.1276       76.67          3.67         —          —            2.45x
+eagle3_rl            233.7      2.7190       87.30          3.85         120.0      4.13         2.79x
+
+
+                                                Dataset: gsm8k                                                
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             256.9      8.2562       31.12          —            —          —            —
+eagle3               259.1      2.8384       92.38          4.44         —          —            2.97x
+eagle3_rl            258.6      2.6202       99.49          4.58         120.0      5.09         3.20x
+
+
+                                              Dataset: mt_bench                                               
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      8.2169       31.28          —            —          —            —
+eagle3               258.9      3.2759       81.23          3.88         —          —            2.60x
+eagle3_rl            258.1      2.8914       90.94          4.04         120.0      4.34         2.91x
+
+==============================================================================================================
+Analysis complete!
+
+✅ Benchmark complete!
+Results saved to: /u/sx24/scratch/LTD_reproduce/evaluate/results/quant_transfer/Qwen3-14B/int4_policy/bf16
+
+Quantization transfer benchmark:
+  Model:             Qwen/Qwen3-14B
+  EA model:          AngelSlim/Qwen3-14B_eagle3
+  Policy variant:    int4
+  Eval quantization: int8
+  Results:           /u/sx24/scratch/LTD_reproduce/evaluate/results/quant_transfer/Qwen3-14B/int4_policy/int8
+==================================
+🚀 RL-Enhanced Inference Benchmark
+==================================
+Base Model:        Qwen/Qwen3-14B
+EA Model:          AngelSlim/Qwen3-14B_eagle3
+Size Model:        /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip
+Depth Model:       /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip
+Datasets:          humaneval alpaca gsm8k mt_bench
+Samples per DS:    50
+Output Directory:  /u/sx24/scratch/LTD_reproduce/evaluate/results/quant_transfer/Qwen3-14B/int4_policy/int8
+Quantization:      int8
+8-bit Alias Used:  0
+Device Map:        auto
+Warmup runs:       3
+Experiment label:  '(none)'
+Policy label:      '(none)'
+Policy train GPU:  '(none)'
+Benchmark GPU tag: '(none)'
+==================================
+
+Starting benchmark...
+python /u/sx24/scratch/LTD_reproduce/evaluate/benchmark_rl_inference.py --base_model_path Qwen/Qwen3-14B --ea_model_path AngelSlim/Qwen3-14B_eagle3 --data_dir /u/sx24/scratch/LTD_reproduce/eagle/data --dataset_names humaneval alpaca gsm8k mt_bench --num_samples 50 --temperature 0.0 --output_dir /u/sx24/scratch/LTD_reproduce/evaluate/results/quant_transfer/Qwen3-14B/int4_policy/int8 --device cuda --quantization int8 --size_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip --depth_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip --device_map auto --warmup_runs 3 
+================================================================================
+🚀 RL-Enhanced Speculative Decoding Benchmark
+================================================================================
+
+📦 Loading models...
+  Base model: Qwen/Qwen3-14B
+  EA model: AngelSlim/Qwen3-14B_eagle3
+  Device: cuda
+  GPU: NVIDIA H100 80GB HBM3
+  CUDA_VISIBLE_DEVICES: '0'  |  torch.cuda.device_count(): 1
+  Quantization: int8
+  Effective device_map: auto
+  Loading size policy: /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip
+  Loading depth policy: /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip
+  Input device (embeddings / first stage): cuda:0
+
+================================================================================
+🔬 Starting benchmark...
+================================================================================
+{'base_model_path': 'Qwen/Qwen3-14B',
+ 'batch_size': 256,
+ 'benchmark_gpu_tag': '',
+ 'bnb_4bit_compute_dtype': '',
+ 'bnb_4bit_quant_type': '',
+ 'bnb_4bit_use_double_quant': False,
+ 'cuda_visible_devices': '0',
+ 'dataset_names': ['humaneval', 'alpaca', 'gsm8k', 'mt_bench'],
+ 'depth_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip',
+ 'device': 'cuda',
+ 'device_map': 'auto',
+ 'ea_model_path': 'AngelSlim/Qwen3-14B_eagle3',
+ 'experiment_label': '',
+ 'gpu_name': 'NVIDIA H100 80GB HBM3',
+ 'input_device': 'cuda:0',
+ 'load_in_4bit': False,
+ 'load_in_8bit': True,
+ 'num_samples': 50,
+ 'parallelism_note': 'HuggingFace accelerate device_map shards layers across '
+                     'GPUs (pipeline-style). This is not Megatron/vLLM tensor '
+                     'parallelism (no all-reduce matmul split).',
+ 'policy_label': '',
+ 'policy_train_gpu': '',
+ 'quantization': 'int8',
+ 'size_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip',
+ 'temperature': 0.0,
+ 'timestamp': '2026-05-02 13:07:45',
+ 'torch_cuda_device_count': 1,
+ 'torch_dtype': 'float16',
+ 'warmup_runs': 3}
+
+📊 Dataset: humaneval
+--------------------------------------------------------------------------------
+✓ Loaded 50 samples from humaneval
+
+  Warmup (3 full passes on first prompt, untimed)...
+Evaluating humaneval 100% ━━━━━━━━━━━━━━━━ 50/50  [ 0:46:01 < 0:00:00 , ? it/s ]
+
+📊 Dataset: alpaca
+--------------------------------------------------------------------------------
+✓ Loaded 50 samples from alpaca
+Evaluating alpaca 100% ━━━━━━━━━━━━━━━━━━━ 50/50  [ 0:42:10 < 0:00:00 , ? it/s ]
+
+📊 Dataset: gsm8k
+--------------------------------------------------------------------------------
+✓ Loaded 50 samples from gsm8k
+Evaluating gsm8k 100% ━━━━━━━━━━━━━━━━━━━━ 50/50  [ 0:42:32 < 0:00:00 , ? it/s ]
+
+📊 Dataset: mt_bench
+--------------------------------------------------------------------------------
+✓ Loaded 50 samples from mt_bench
+Evaluating mt_bench 100% ━━━━━━━━━━━━━━━━━ 50/50  [ 0:43:58 < 0:00:00 , ? it/s ]
+
+✅ Results saved to /u/sx24/scratch/LTD_reproduce/evaluate/results/quant_transfer/Qwen3-14B/int4_policy/int8/benchmark_results_20260502_160512.json
+==============================================================================================================
+BENCHMARK RESULTS ANALYSIS
+==============================================================================================================
+
+Run Configuration:
+  Base model:    Qwen/Qwen3-14B
+  EA model:      AngelSlim/Qwen3-14B_eagle3
+  Size policy:   /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip
+  Depth policy:  /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip
+  Datasets:      humaneval, alpaca, gsm8k, mt_bench
+  Num samples:   50
+  Batch size:    256
+  Temperature:   0.0
+  Device:        cuda
+  Quantization:  int8
+  Timestamp:     2026-05-02 13:07:45
+
+                                              Dataset: humaneval                                              
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      33.7855      7.61           —            —          —            —
+eagle3               259.1      10.9896      23.79          3.94         —          —            3.13x
+eagle3_rl            258.4      10.4575      24.87          4.09         120.0      4.56         3.27x
+
+
+                                               Dataset: alpaca                                                
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             231.8      29.9090      7.75           —            —          —            —
+eagle3               233.7      10.6558      22.30          3.64         —          —            2.88x
+eagle3_rl            235.0      10.0480      23.77          3.83         120.0      4.14         3.07x
+
+
+                                                Dataset: gsm8k                                                
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      32.4902      7.91           —            —          —            —
+eagle3               259.5      9.5433       27.47          4.40         —          —            3.47x
+eagle3_rl            258.3      9.0208       28.89          4.63         120.0      5.11         3.65x
+
+
+                                              Dataset: mt_bench                                               
+--------------------------------------------------------------------------------------------------------------
+Method               Tokens     Time (s)     Throughput     Acceptance   SizeTok    DepthStop    Speedup
+--------------------------------------------------------------------------------------------------------------
+baseline             257.0      31.7984      8.09           —            —          —            —
+eagle3               258.7      10.8373      24.75          3.84         —          —            3.06x
+eagle3_rl            258.4      10.1364      26.33          4.04         120.0      4.33         3.26x
+
+==============================================================================================================
+Analysis complete!
+
+✅ Benchmark complete!
+Results saved to: /u/sx24/scratch/LTD_reproduce/evaluate/results/quant_transfer/Qwen3-14B/int4_policy/int8
+
+Quantization transfer benchmark:
+  Model:             Qwen/Qwen3-14B
+  EA model:          AngelSlim/Qwen3-14B_eagle3
+  Policy variant:    int4
+  Eval quantization: int4
+  Results:           /u/sx24/scratch/LTD_reproduce/evaluate/results/quant_transfer/Qwen3-14B/int4_policy/int4
+==================================
+🚀 RL-Enhanced Inference Benchmark
+==================================
+Base Model:        Qwen/Qwen3-14B
+EA Model:          AngelSlim/Qwen3-14B_eagle3
+Size Model:        /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip
+Depth Model:       /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip
+Datasets:          humaneval alpaca gsm8k mt_bench
+Samples per DS:    50
+Output Directory:  /u/sx24/scratch/LTD_reproduce/evaluate/results/quant_transfer/Qwen3-14B/int4_policy/int4
+Quantization:      int4
+8-bit Alias Used:  0
+Device Map:        auto
+Warmup runs:       3
+Experiment label:  '(none)'
+Policy label:      '(none)'
+Policy train GPU:  '(none)'
+Benchmark GPU tag: '(none)'
+==================================
+
+Starting benchmark...
+python /u/sx24/scratch/LTD_reproduce/evaluate/benchmark_rl_inference.py --base_model_path Qwen/Qwen3-14B --ea_model_path AngelSlim/Qwen3-14B_eagle3 --data_dir /u/sx24/scratch/LTD_reproduce/eagle/data --dataset_names humaneval alpaca gsm8k mt_bench --num_samples 50 --temperature 0.0 --output_dir /u/sx24/scratch/LTD_reproduce/evaluate/results/quant_transfer/Qwen3-14B/int4_policy/int4 --device cuda --quantization int4 --size_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip --depth_model_path /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip --device_map auto --warmup_runs 3 
+================================================================================
+🚀 RL-Enhanced Speculative Decoding Benchmark
+================================================================================
+
+📦 Loading models...
+  Base model: Qwen/Qwen3-14B
+  EA model: AngelSlim/Qwen3-14B_eagle3
+  Device: cuda
+  GPU: NVIDIA H100 80GB HBM3
+  CUDA_VISIBLE_DEVICES: '0'  |  torch.cuda.device_count(): 1
+  Quantization: int4
+  Effective device_map: auto
+  Loading size policy: /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip
+  Loading depth policy: /u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip
+  Input device (embeddings / first stage): cuda:0
+
+================================================================================
+🔬 Starting benchmark...
+================================================================================
+{'base_model_path': 'Qwen/Qwen3-14B',
+ 'batch_size': 256,
+ 'benchmark_gpu_tag': '',
+ 'bnb_4bit_compute_dtype': 'bf16',
+ 'bnb_4bit_quant_type': 'nf4',
+ 'bnb_4bit_use_double_quant': True,
+ 'cuda_visible_devices': '0',
+ 'dataset_names': ['humaneval', 'alpaca', 'gsm8k', 'mt_bench'],
+ 'depth_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/depth/final.zip',
+ 'device': 'cuda',
+ 'device_map': 'auto',
+ 'ea_model_path': 'AngelSlim/Qwen3-14B_eagle3',
+ 'experiment_label': '',
+ 'gpu_name': 'NVIDIA H100 80GB HBM3',
+ 'input_device': 'cuda:0',
+ 'load_in_4bit': True,
+ 'load_in_8bit': False,
+ 'num_samples': 50,
+ 'parallelism_note': 'HuggingFace accelerate device_map shards layers across '
+                     'GPUs (pipeline-style). This is not Megatron/vLLM tensor '
+                     'parallelism (no all-reduce matmul split).',
+ 'policy_label': '',
+ 'policy_train_gpu': '',
+ 'quantization': 'int4',
+ 'size_model_path': '/u/sx24/scratch/LTD_reproduce/checkpoints/quant_transfer/Qwen3-14B/int4/size/final.zip',
+ 'temperature': 0.0,
+ 'timestamp': '2026-05-02 16:06:15',
+ 'torch_cuda_device_count': 1,
+ 'torch_dtype': 'float16',
+ 'warmup_runs': 3}
+
+📊 Dataset: humaneval
+--------------------------------------------------------------------------------
+✓ Loaded 50 samples from humaneval
+
+  Warmup (3 full passes on first prompt, untimed)...

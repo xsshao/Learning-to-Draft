@@ -1,0 +1,66 @@
+Requirement already satisfied: pip in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (26.0.1)
+Requirement already satisfied: setuptools in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (82.0.1)
+Requirement already satisfied: wheel in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (0.47.0)
+Requirement already satisfied: packaging>=24.0 in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (from wheel) (26.0)
+missing_modules=
+SLURM array task 4: running dataset 'mt_bench'
+Grid sweep configuration:
+  Base model:   Qwen/Qwen3-14B
+  EA model:     AngelSlim/Qwen3-14B_eagle3
+  Datasets:     humaneval alpaca gsm8k mt_bench
+  Num samples:  50
+  Temperature:  0.0
+  Depths:       3 5 8 12
+  Sizes:        20 40 60 100 150 200
+  Results dir:  /u/sx24/scratch/LTD_reproduce/evaluate/results/grid_sweep/Qwen3-14B/mt_bench
+  8-bit load:   1
+  Device map:   auto
+
+Command:
+python /u/sx24/scratch/LTD_reproduce/evaluate/benchmark_grid_sweep.py --base_model_path Qwen/Qwen3-14B --ea_model_path AngelSlim/Qwen3-14B_eagle3 --data_dir /u/sx24/scratch/LTD_reproduce/eagle/data --dataset_names humaneval alpaca gsm8k mt_bench --dataset_index 3 --num_samples 50 --temperature 0.0 --depths 3 5 8 12 --sizes 20 40 60 100 150 200 --output_dir /u/sx24/scratch/LTD_reproduce/evaluate/results/grid_sweep/Qwen3-14B/mt_bench --device cuda --load_in_8bit --device_map auto 
+================================================================================
+Grid Sweep Benchmark: Eagle3 static (depth x size)
+================================================================================
+  Base model:  Qwen/Qwen3-14B
+  EA model:    AngelSlim/Qwen3-14B_eagle3
+  Depths:      [3, 5, 8, 12]
+  Sizes:       [20, 40, 60, 100, 150, 200]
+  Grid points: 24
+  Datasets:    ['mt_bench']
+  Samples:     50
+  Temperature: 0.0
+  GPU:         NVIDIA H100 80GB HBM3
+================================================================================
+
+Loading model...
+
+============================================================
+Dataset: mt_bench
+============================================================
+✓ Loaded 50 samples from mt_bench
+
+  Running baseline autoregressive decoding...
+         baseline throughput=8.2 tok/s
+
+  Running grid sweep (4x6 = 24 configs)...
+  [1/24] depth=3, size=20
+         throughput=22.4 tok/s, acc_len=3.35
+  [2/24] depth=3, size=40
+         throughput=24.5 tok/s, acc_len=3.64
+  [3/24] depth=3, size=60
+         throughput=26.0 tok/s, acc_len=3.81
+  [4/24] depth=3, size=100
+         throughput=27.6 tok/s, acc_len=4.03
+  [5/24] depth=3, size=150
+         throughput=28.3 tok/s, acc_len=4.15
+  [6/24] depth=3, size=200
+         throughput=28.4 tok/s, acc_len=4.22
+  [7/24] depth=5, size=20
+         throughput=23.6 tok/s, acc_len=3.32
+  [8/24] depth=5, size=40
+         throughput=26.0 tok/s, acc_len=3.67
+  [9/24] depth=5, size=60
+         throughput=27.0 tok/s, acc_len=3.84
+  [10/24] depth=5, size=100
+         throughput=27.9 tok/s, acc_len=4.02
+  [11/24] depth=5, size=150

@@ -1,0 +1,17 @@
+{
+  "logs": [
+    "/u/sx24/scratch/LTD_reproduce/slurm/logs/grid_qwen14b_a6000_calib_8415315_1.out",
+    "/u/sx24/scratch/LTD_reproduce/slurm/logs/grid_qwen14b_a6000_calib_8415315_2.out"
+  ],
+  "num_rows": 43,
+  "baseline_tps": [
+    20.0,
+    20.2
+  ],
+  "baseline_token_times_seconds": [
+    0.05,
+    0.04950495049504951
+  ],
+  "mean_baseline_token_time_seconds": 0.049752475247524755,
+  "note": "Rows are parsed from incomplete stdout; elapsed_time is approximated as avg_acceptance_len / throughput."
+}

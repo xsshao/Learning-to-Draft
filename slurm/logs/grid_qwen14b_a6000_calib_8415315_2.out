@@ -1,0 +1,93 @@
+Requirement already satisfied: pip in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (26.0.1)
+Requirement already satisfied: setuptools in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (82.0.1)
+Requirement already satisfied: wheel in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (0.47.0)
+Requirement already satisfied: packaging>=24.0 in /u/sx24/.venvs/ltd_vicuna/lib/python3.9/site-packages (from wheel) (26.0)
+missing_modules=
+SLURM array task 2: running dataset 'alpaca'
+Grid sweep configuration:
+  Base model:   Qwen/Qwen3-14B
+  EA model:     AngelSlim/Qwen3-14B_eagle3
+  Datasets:     humaneval alpaca gsm8k mt_bench
+  Num samples:  50
+  Temperature:  0.0
+  Depths:       1 3 5 8 12
+  Sizes:        10 30 60 100 160 220
+  Results dir:  /u/sx24/scratch/LTD_reproduce/evaluate/results/grid_sweep/Qwen3-14B/a6000_bf16/alpaca
+  Quantization: bf16
+  Device map:   auto
+
+Command:
+python /u/sx24/scratch/LTD_reproduce/evaluate/benchmark_grid_sweep.py --base_model_path Qwen/Qwen3-14B --ea_model_path AngelSlim/Qwen3-14B_eagle3 --data_dir /u/sx24/scratch/LTD_reproduce/eagle/data --dataset_names humaneval alpaca gsm8k mt_bench --dataset_index 1 --num_samples 50 --temperature 0.0 --depths 1 3 5 8 12 --sizes 10 30 60 100 160 220 --output_dir /u/sx24/scratch/LTD_reproduce/evaluate/results/grid_sweep/Qwen3-14B/a6000_bf16/alpaca --device cuda --quantization bf16 --device_map auto 
+================================================================================
+Grid Sweep Benchmark: Eagle3 static (depth x size)
+================================================================================
+  Base model:  Qwen/Qwen3-14B
+  EA model:    AngelSlim/Qwen3-14B_eagle3
+  Depths:      [1, 3, 5, 8, 12]
+  Sizes:       [10, 30, 60, 100, 160, 220]
+  Grid points: 30
+  Datasets:    ['alpaca']
+  Samples:     50
+  Temperature: 0.0
+  GPU:         NVIDIA RTX A6000
+================================================================================
+  Quantization: bf16
+  Effective device_map: auto
+
+Loading model...
+  Input device: cuda:0
+
+============================================================
+Dataset: alpaca
+============================================================
+✓ Loaded 50 samples from alpaca
+
+  Running baseline autoregressive decoding...
+         baseline throughput=20.2 tok/s
+
+  Running grid sweep (5x6 = 30 configs)...
+  [1/30] depth=1, size=10
+         throughput=39.5 tok/s, acc_len=2.80
+  [2/30] depth=1, size=30
+         throughput=45.8 tok/s, acc_len=3.35
+  [3/30] depth=1, size=60
+         throughput=47.6 tok/s, acc_len=3.62
+  [4/30] depth=1, size=100
+         throughput=46.0 tok/s, acc_len=3.77
+  [5/30] depth=1, size=160
+         throughput=36.9 tok/s, acc_len=3.91
+  [6/30] depth=1, size=220
+         throughput=32.4 tok/s, acc_len=3.97
+  [7/30] depth=3, size=10
+         throughput=39.6 tok/s, acc_len=2.82
+  [8/30] depth=3, size=30
+         throughput=46.2 tok/s, acc_len=3.38
+  [9/30] depth=3, size=60
+         throughput=47.8 tok/s, acc_len=3.64
+  [10/30] depth=3, size=100
+         throughput=47.0 tok/s, acc_len=3.86
+  [11/30] depth=3, size=160
+         throughput=37.1 tok/s, acc_len=3.95
+  [12/30] depth=3, size=220
+         throughput=32.8 tok/s, acc_len=4.05
+  [13/30] depth=5, size=10
+         throughput=39.9 tok/s, acc_len=2.83
+  [14/30] depth=5, size=30
+         throughput=46.0 tok/s, acc_len=3.37
+  [15/30] depth=5, size=60
+         throughput=48.0 tok/s, acc_len=3.66
+  [16/30] depth=5, size=100
+         throughput=47.0 tok/s, acc_len=3.86
+  [17/30] depth=5, size=160
+         throughput=37.5 tok/s, acc_len=3.99
+  [18/30] depth=5, size=220
+         throughput=32.6 tok/s, acc_len=4.03
+  [19/30] depth=8, size=10
+         throughput=39.8 tok/s, acc_len=2.83
+  [20/30] depth=8, size=30
+         throughput=45.8 tok/s, acc_len=3.36
+  [21/30] depth=8, size=60
+         throughput=47.8 tok/s, acc_len=3.65
+  [22/30] depth=8, size=100
+         throughput=47.0 tok/s, acc_len=3.86
+  [23/30] depth=8, size=160
